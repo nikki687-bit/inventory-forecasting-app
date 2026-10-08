@@ -63,7 +63,7 @@ if uploaded_file is not None:
         
         available_cols = list(df.columns)
         
-        # Helper to find the best default column based on keywords
+        # Helper to find the best default column based on precise keywords
         def get_default(keywords, used_cols):
             for col in available_cols:
                 if col not in used_cols:
@@ -78,16 +78,16 @@ if uploaded_file is not None:
         def_price = get_default(['price', 'cost', 'rate', 'unit_price'], used)
         used.append(def_price)
         
-        def_stock = get_default(['stock', 'inventory', 'qty', 'quantity', 'current_stock'], used)
+        def_stock = get_default(['stock', 'inventory', 'qty', 'quantity', 'current_stock', 'current_st'], used)
         used.append(def_stock)
         
-        def_discount = get_default(['discount', 'offer', 'markdown', 'promo'], used)
+        def_discount = get_default(['discount', 'offer', 'markdown', 'promo', 'promotion'], used)
         used.append(def_discount)
         
-        def_prev_sales = get_default(['previous', 'sales', 'past', 'sold', 'demand', 'target'], used)
+        def_prev_sales = get_default(['previous', 'sales', 'past', 'sold', 'history'], used)
         used.append(def_prev_sales)
         
-        def_holiday = get_default(['holiday', 'festival', 'promotion', 'is_holiday', 'historical'], used)
+        def_holiday = get_default(['holiday', 'festival', 'is_holiday'], used)
         used.append(def_holiday)
         
         def_category = get_default(['category', 'department', 'type', 'group'], used)
@@ -95,21 +95,19 @@ if uploaded_file is not None:
         
         def_date = get_default(['date', 'time', 'day'], [])
         
-        # Robust Product ID / Name finder
+        # Intelligent Product ID finder
         def_id = None
         for col in available_cols:
             if any(k in col.lower() for k in ['id', 'product', 'item', 'name', 'sku']):
                 def_id = col
                 break
-        if not def_id:
-            def_id = available_cols[0]
 
         # --- SMART MAPPING WITH DETAILED EXPLANATORY NOTE ---
         with st.expander("⚙️ Smart Column Mapping (Auto-detected — Click to expand/adjust)", expanded=False):
             st.info(
                 "💡 **How Smart Mapping Works:**\n"
                 "This feature bridges your custom CSV headers with the machine learning model's requirements. "
-                "If your file uses alternative column names (e.g., `Unit_Cost` for price, `Qty` for stock, or `Department` for category), "
+                "If your file uses alternative column names (e.g., `Unit_Price` for price, `Current_Stock` for stock), "
                 "the system auto-detects them or lets you map them manually here. This means you **never need to modify or reformat your original spreadsheet** "
                 "to make it compatible with the dashboard!"
             )
@@ -124,11 +122,15 @@ if uploaded_file is not None:
             with col_map3:
                 holiday_col = st.selectbox("Holiday Column", available_cols, index=available_cols.index(def_holiday) if def_holiday in available_cols else 0)
                 category_col = st.selectbox("Category Column", available_cols, index=available_cols.index(def_category) if def_category in available_cols else 0)
-                id_col = st.selectbox("Product ID / Name Column", available_cols, index=available_cols.index(def_id) if def_id in available_cols else 0)
+                
+                id_options = ["None (Auto-generate IDs)"] + available_cols
+                default_id_index = id_options.index(def_id) if def_id in id_options else 0
+                selected_id_opt = st.selectbox("Product ID / Name Column", id_options, index=default_id_index)
         
         # If expander is closed, use default values
         if 'price_col' not in locals():
-            price_col, stock_col, discount_col, prev_sales_col, holiday_col, category_col, id_col = def_price, def_stock, def_discount, def_prev_sales, def_holiday, def_category, def_id
+            price_col, stock_col, discount_col, prev_sales_col, holiday_col, category_col = def_price, def_stock, def_discount, def_prev_sales, def_holiday, def_category
+            selected_id_opt = def_id if def_id else "None (Auto-generate IDs)"
 
         # Process DataFrame
         processed_df = pd.DataFrame()
@@ -138,7 +140,12 @@ if uploaded_file is not None:
         processed_df['Previous_Sales'] = pd.to_numeric(df[prev_sales_col], errors='coerce').fillna(0)
         processed_df['Stock_Available'] = pd.to_numeric(df[stock_col], errors='coerce').fillna(0)
         
-        processed_df['Product_ID'] = df[id_col].astype(str) if id_col in df.columns else [f"P100{i}" for i in range(len(df))]
+        # Handle Product ID generation
+        if selected_id_opt != "None (Auto-generate IDs)" and selected_id_opt in df.columns:
+            processed_df['Product_ID'] = df[selected_id_opt].astype(str)
+        else:
+            processed_df['Product_ID'] = [f"Item_{i+1}" for i in range(len(df))]
+            
         processed_df['Category'] = df[category_col].astype(str) if category_col in df.columns else "General"
         
         date_col = def_date if def_date in df.columns else None
