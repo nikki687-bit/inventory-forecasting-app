@@ -13,7 +13,7 @@ st.set_page_config(
 
 # --- MAIN TITLE & HEADER ---
 st.title("📊 AI Inventory Forecasting & Reorder Dashboard")
-st.markdown("Upload any inventory CSV file, auto-detect or map your columns, and generate dynamic demand predictions.")
+st.markdown("Upload any inventory CSV file, map your columns, and generate dynamic demand predictions.")
 
 # --- FILE UPLOADER ---
 uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
@@ -55,14 +55,6 @@ with st.expander("📂 View CSV Format Guide & Download Sample Template"):
 
 st.markdown("---")
 
-# Helper function to find best matching column name automatically
-def find_best_match(columns, keywords):
-    for col in columns:
-        for kw in keywords:
-            if kw in col.lower():
-                return col
-    return columns[0] if len(columns) > 0 else None
-
 # --- MAIN LOGIC & DASHBOARD ---
 if uploaded_file is not None:
     try:
@@ -70,33 +62,58 @@ if uploaded_file is not None:
         
         st.success(f"Successfully uploaded `{uploaded_file.name}`! ({len(df)} rows found)")
         
-        # --- SMART COLUMN MAPPING SECTION ---
+        # --- UNIQUE SMART COLUMN MAPPING ---
         st.markdown("### ⚙️ Smart Column Mapping")
-        st.markdown("We auto-detected your columns below. Adjust them if needed:")
+        st.markdown("Verify and adjust how your CSV columns map to the model requirements:")
         
         available_cols = list(df.columns)
         
-        def_price = find_best_match(available_cols, ['price', 'cost', 'rate'])
-        def_stock = find_best_match(available_cols, ['stock', 'inventory', 'qty', 'quantity'])
-        def_discount = find_best_match(available_cols, ['discount', 'offer', 'markdown'])
-        def_prev_sales = find_best_match(available_cols, ['previous', 'sales', 'past', 'sold'])
-        def_holiday = find_best_match(available_cols, ['holiday', 'festival', 'promo'])
-        def_category = find_best_match(available_cols, ['category', 'department', 'type', 'group'])
-        def_date = find_best_match(available_cols, ['date', 'time', 'day'])
-        def_id = find_best_match(available_cols, ['id', 'product', 'item'])
+        # Helper to find a distinct default column
+        def get_default(keywords, used_cols):
+            for col in available_cols:
+                if col not in used_cols:
+                    if any(kw in col.lower() for kw in keywords):
+                        return col
+            # Fallback to first available unused column
+            for col in available_cols:
+                if col not in used_cols:
+                    return col
+            return available_cols[0]
+
+        used = []
+        def_price = get_default(['price', 'cost', 'rate', 'unit_price'], used)
+        used.append(def_price)
         
+        def_stock = get_default(['stock', 'inventory', 'qty', 'quantity', 'current_stock'], used)
+        used.append(def_stock)
+        
+        def_discount = get_default(['discount', 'offer', 'markdown', 'promo'], used)
+        used.append(def_discount)
+        
+        def_prev_sales = get_default(['previous', 'sales', 'past', 'sold', 'demand'], used)
+        used.append(def_prev_sales)
+        
+        def_holiday = get_default(['holiday', 'festival', 'promotion', 'is_holiday'], used)
+        used.append(def_holiday)
+        
+        def_category = get_default(['category', 'department', 'type', 'group'], used)
+        used.append(def_category)
+        
+        def_date = get_default(['date', 'time', 'day'], [])
+        def_id = get_default(['id', 'product', 'item_id'], [])
+
         col_map1, col_map2, col_map3 = st.columns(3)
         with col_map1:
-            price_col = st.selectbox("Price Column", available_cols, index=available_cols.index(def_price) if def_price in available_cols else 0)
-            stock_col = st.selectbox("Stock Available Column", available_cols, index=available_cols.index(def_stock) if def_stock in available_cols else 0)
+            price_col = st.selectbox("Price Column", available_cols, index=available_cols.index(def_price))
+            stock_col = st.selectbox("Stock Available Column", available_cols, index=available_cols.index(def_stock))
         with col_map2:
-            discount_col = st.selectbox("Discount Column", available_cols, index=available_cols.index(def_discount) if def_discount in available_cols else 0)
-            prev_sales_col = st.selectbox("Previous Sales Column", available_cols, index=available_cols.index(def_prev_sales) if def_prev_sales in available_cols else 0)
+            discount_col = st.selectbox("Discount Column", available_cols, index=available_cols.index(def_discount))
+            prev_sales_col = st.selectbox("Previous Sales Column", available_cols, index=available_cols.index(def_prev_sales))
         with col_map3:
-            holiday_col = st.selectbox("Holiday Column", available_cols, index=available_cols.index(def_holiday) if def_holiday in available_cols else 0)
-            category_col = st.selectbox("Category Column", available_cols, index=available_cols.index(def_category) if def_category in available_cols else 0)
+            holiday_col = st.selectbox("Holiday Column", available_cols, index=available_cols.index(def_holiday))
+            category_col = st.selectbox("Category Column", available_cols, index=available_cols.index(def_category))
 
-        # Base processed dataframe for display
+        # Base processed dataframe for display and prediction
         processed_df = pd.DataFrame()
         processed_df['Price'] = pd.to_numeric(df[price_col], errors='coerce').fillna(0)
         processed_df['Discount'] = pd.to_numeric(df[discount_col], errors='coerce').fillna(0)
@@ -130,7 +147,6 @@ if uploaded_file is not None:
                 model = pickle.load(f)
         
         if model is not None:
-            # Extract exact feature names expected by the trained model
             if hasattr(model, "feature_names_in_"):
                 expected_features = model.feature_names_in_
             elif hasattr(model, "get_booster") and hasattr(model.get_booster(), "feature_names"):
@@ -140,19 +156,16 @@ if uploaded_file is not None:
                                      'Year', 'Month', 'Day', 'DayOfWeek', 
                                      'Category_Electronics', 'Category_Furniture', 'Category_Groceries', 'Category_Toys']
             
-            # Build feature matrix matching model requirements
             temp_X = pd.DataFrame(index=processed_df.index)
             for col in ['Price', 'Discount', 'Holiday', 'Previous_Sales', 'Stock_Available', 'Year', 'Month', 'Day', 'DayOfWeek']:
                 if col in processed_df.columns:
                     temp_X[col] = processed_df[col]
             
-            # One-hot encode category features dynamically
             for feat in expected_features:
                 if feat.startswith("Category_"):
                     cat_name = feat.replace("Category_", "")
                     temp_X[feat] = (processed_df['Category'].astype(str).str.lower() == cat_name.lower()).astype(int)
             
-            # Reindex to ensure exact feature match and order
             X = temp_X.reindex(columns=expected_features, fill_value=0)
             preds = model.predict(X)
         else:
@@ -188,7 +201,7 @@ if uploaded_file is not None:
             st.subheader("Demand Distribution / Trend")
             st.line_chart(processed_df['Predicted_Demand'])
             
-        st.markdown("---")
+        st.markdown---()
         
         # Detailed Table View
         st.markdown("### 📋 Detailed Product Evaluation Table")
