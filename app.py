@@ -76,13 +76,14 @@ if uploaded_file is not None:
         
         available_cols = list(df.columns)
         
-        # Auto-detect defaults using keywords
         def_price = find_best_match(available_cols, ['price', 'cost', 'rate'])
         def_stock = find_best_match(available_cols, ['stock', 'inventory', 'qty', 'quantity'])
         def_discount = find_best_match(available_cols, ['discount', 'offer', 'markdown'])
         def_prev_sales = find_best_match(available_cols, ['previous', 'sales', 'past', 'sold'])
         def_holiday = find_best_match(available_cols, ['holiday', 'festival', 'promo'])
         def_category = find_best_match(available_cols, ['category', 'department', 'type', 'group'])
+        def_date = find_best_match(available_cols, ['date', 'time', 'day'])
+        def_id = find_best_match(available_cols, ['id', 'product', 'item'])
         
         col_map1, col_map2, col_map3 = st.columns(3)
         with col_map1:
@@ -95,7 +96,7 @@ if uploaded_file is not None:
             holiday_col = st.selectbox("Holiday Column", available_cols, index=available_cols.index(def_holiday) if def_holiday in available_cols else 0)
             category_col = st.selectbox("Category Column", available_cols, index=available_cols.index(def_category) if def_category in available_cols else 0)
 
-        # Normalize mapped data for the model
+        # Base processed dataframe for display
         processed_df = pd.DataFrame()
         processed_df['Price'] = pd.to_numeric(df[price_col], errors='coerce').fillna(0)
         processed_df['Discount'] = pd.to_numeric(df[discount_col], errors='coerce').fillna(0)
@@ -103,9 +104,23 @@ if uploaded_file is not None:
         processed_df['Previous_Sales'] = pd.to_numeric(df[prev_sales_col], errors='coerce').fillna(0)
         processed_df['Stock_Available'] = pd.to_numeric(df[stock_col], errors='coerce').fillna(0)
         
-        processed_df['Product_ID'] = df['Product_ID'] if 'Product_ID' in df.columns else [f"P100{i}" for i in range(len(df))]
+        processed_df['Product_ID'] = df[def_id] if def_id in df.columns else [f"P100{i}" for i in range(len(df))]
         processed_df['Category'] = df[category_col] if category_col in df.columns else "General"
-        processed_df['Date'] = df['Date'] if 'Date' in df.columns else "2026-06-01"
+        
+        date_col = def_date if def_date in df.columns else None
+        if date_col:
+            processed_df['Date'] = df[date_col]
+            dt = pd.to_datetime(df[date_col], errors='coerce')
+            processed_df['Year'] = dt.dt.year.fillna(2026)
+            processed_df['Month'] = dt.dt.month.fillna(6)
+            processed_df['Day'] = dt.dt.day.fillna(1)
+            processed_df['DayOfWeek'] = dt.dt.dayofweek.fillna(0)
+        else:
+            processed_df['Date'] = "2026-06-01"
+            processed_df['Year'] = 2026
+            processed_df['Month'] = 6
+            processed_df['Day'] = 1
+            processed_df['DayOfWeek'] = 0
 
         # Load XGBoost Model
         model_path = "xgboost_inventory_model.pkl"
@@ -114,10 +129,31 @@ if uploaded_file is not None:
             with open(model_path, "rb") as f:
                 model = pickle.load(f)
         
-        features = ['Price', 'Discount', 'Holiday', 'Previous_Sales', 'Stock_Available']
-        
         if model is not None:
-            X = processed_df[features]
+            # Extract exact feature names expected by the trained model
+            if hasattr(model, "feature_names_in_"):
+                expected_features = model.feature_names_in_
+            elif hasattr(model, "get_booster") and hasattr(model.get_booster(), "feature_names"):
+                expected_features = model.get_booster().feature_names
+            else:
+                expected_features = ['Price', 'Discount', 'Holiday', 'Previous_Sales', 'Stock_Available', 
+                                     'Year', 'Month', 'Day', 'DayOfWeek', 
+                                     'Category_Electronics', 'Category_Furniture', 'Category_Groceries', 'Category_Toys']
+            
+            # Build feature matrix matching model requirements
+            temp_X = pd.DataFrame(index=processed_df.index)
+            for col in ['Price', 'Discount', 'Holiday', 'Previous_Sales', 'Stock_Available', 'Year', 'Month', 'Day', 'DayOfWeek']:
+                if col in processed_df.columns:
+                    temp_X[col] = processed_df[col]
+            
+            # One-hot encode category features dynamically
+            for feat in expected_features:
+                if feat.startswith("Category_"):
+                    cat_name = feat.replace("Category_", "")
+                    temp_X[feat] = (processed_df['Category'].astype(str).str.lower() == cat_name.lower()).astype(int)
+            
+            # Reindex to ensure exact feature match and order
+            X = temp_X.reindex(columns=expected_features, fill_value=0)
             preds = model.predict(X)
         else:
             preds = processed_df['Previous_Sales'] * 1.05 + np.random.uniform(-2, 2, len(processed_df))
