@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 st.title("📦 AI Inventory Forecasting & Reorder Dashboard")
-st.markdown("Upload your retail inventory CSV file to generate dynamic demand predictions, track reorders, and analyze trends.")
+st.markdown("Upload your inventory CSV file to generate dynamic demand predictions, track reorders, and analyze trends.")
 
 # Load Trained Model
 @st.cache_resource
@@ -28,19 +28,19 @@ model = load_model()
 if model is None:
     st.error("⚠️ Model file `xgboost_inventory_model.pkl` not found in the repository root directory!")
 else:
-    # Sidebar File Uploader
-    st.sidebar.header("Data Upload")
-    uploaded_file = st.sidebar.file_uploader("Upload Inventory CSV", type=["csv"])
+    # Main Page File Uploader (No Sidebar)
+    st.markdown("---")
+    uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
     
     if uploaded_file is not None:
         try:
             df = pd.read_csv(uploaded_file)
-            st.sidebar.success("Successfully loaded uploaded CSV file!")
+            st.success("Successfully loaded uploaded CSV file!")
             
-            # --- ROBUST PREPROCESSING PIPELINE ---
+            # --- PREPROCESSING MATCHING TRAINING SCRIPT 100% ---
             model_df = df.copy()
             
-            # 1. Handle truncated column names from Excel display (e.g., Previous_S, Stock_Avai)
+            # 1. Handle truncated column names from Excel display
             rename_map = {}
             for col in model_df.columns:
                 if col.startswith('Previous_S'):
@@ -49,11 +49,10 @@ else:
                     rename_map[col] = 'Stock_Available'
             model_df = model_df.rename(columns=rename_map)
 
-            # Ensure standard stock column exists for reorder logic
             if 'Stock_Aval' in model_df.columns and 'Stock_Available' not in model_df.columns:
                 model_df['Stock_Available'] = model_df['Stock_Aval']
 
-            # 2. Extract Date / Time features matching the training pipeline
+            # 2. Extract Date / Time features exactly like training script
             if 'Date' in model_df.columns:
                 model_df['Date'] = pd.to_datetime(model_df['Date'])
                 model_df['Year'] = model_df['Date'].dt.year
@@ -61,19 +60,35 @@ else:
                 model_df['Day'] = model_df['Date'].dt.day
                 model_df['DayOfWeek'] = model_df['Date'].dt.dayofweek
 
-            # 3. One-hot encode Category column
-            if 'Category' in model_df.columns:
-                model_df = pd.get_dummies(model_df, columns=['Category'], drop_first=True)
+            # 3. Select exact feature subset used in training
+            training_features = [
+                'Price', 'Discount', 'Holiday', 'Previous_Sales', 
+                'Stock_Available', 'Year', 'Month', 'Day', 'DayOfWeek', 'Category'
+            ]
+            
+            for col in training_features:
+                if col not in model_df.columns:
+                    if col in ['Price', 'Discount', 'Previous_Sales', 'Stock_Available']:
+                        model_df[col] = 0.0
+                    elif col in ['Holiday', 'Year', 'Month', 'Day', 'DayOfWeek']:
+                        model_df[col] = 0
+                    elif col == 'Category':
+                        model_df[col] = 'Unknown'
 
-            # 4. Align features precisely with model expectations
+            X_subset = model_df[training_features]
+
+            # 4. One-hot encode Category exactly like training script
+            X_encoded = pd.get_dummies(X_subset, columns=['Category'], drop_first=True)
+
+            # 5. Align precisely with model.feature_names_in_
             if hasattr(model, "feature_names_in_"):
                 expected_features = model.feature_names_in_
                 for col in expected_features:
-                    if col not in model_df.columns:
-                        model_df[col] = 0
-                X_predict = model_df[expected_features]
+                    if col not in X_encoded.columns:
+                        X_encoded[col] = 0
+                X_predict = X_encoded[expected_features]
             else:
-                X_predict = model_df.select_dtypes(include=[np.number])
+                X_predict = X_encoded
 
             # Run Predictions
             preds = model.predict(X_predict)
@@ -116,11 +131,24 @@ else:
                 st.markdown("##### Demand Distribution / Trend")
                 st.line_chart(df['Predicted_Demand'].reset_index(drop=True))
 
-            # --- DATAFRAME VIEW & DOWNLOAD ---
+            # --- DETAILED OUTPUT TABLE & FILTERING ---
             st.markdown("---")
             st.subheader("📋 Detailed Product Evaluation Table")
-            st.dataframe(df)
+            
+            table_filter = st.radio(
+                "Filter Table View:",
+                ["All Products", "⚠️ Reorder Required Only"],
+                horizontal=True
+            )
+            
+            display_df = df.copy()
+            if table_filter == "⚠️ Reorder Required Only":
+                if 'Reorder_Required' in display_df.columns:
+                    display_df = display_df[display_df['Reorder_Required'] == True]
+            
+            st.dataframe(display_df, use_container_width=True)
 
+            # --- DOWNLOAD BUTTON ---
             csv_data = df.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="📥 Download Batch Predictions CSV",
@@ -132,4 +160,4 @@ else:
         except Exception as e:
             st.error(f"Error processing the uploaded file: {e}")
     else:
-        st.info("👈 Please upload your `clean_retail_inventory.csv` file in the sidebar to get started.")
+        st.info("👆 Please upload your CSV file above to get started.")
