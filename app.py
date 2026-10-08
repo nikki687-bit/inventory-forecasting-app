@@ -187,16 +187,30 @@ if uploaded_file is not None:
         processed_df['Predicted_Demand'] = np.round(preds, 2)
         processed_df['Reorder_Required'] = processed_df['Stock_Available'] < processed_df['Predicted_Demand']
         
-        # Top Metrics Summary Cards
+        # Top Metrics Summary Cards with Hover Tooltips (help parameter)
         total_products = len(processed_df)
         reorder_count = int(processed_df['Reorder_Required'].sum())
         total_predicted_demand = int(processed_df['Predicted_Demand'].sum())
         
         st.markdown("<br>", unsafe_allow_html=True)
         m1, m2, m3 = st.columns(3)
-        m1.metric("Total Products Evaluated", f"{total_products:,}")
-        m2.metric("Items Requiring Reorder", f"{reorder_count:,}", delta=f"-{reorder_count} urgent" if reorder_count > 0 else "All Good", delta_color="inverse" if reorder_count > 0 else "normal")
-        m3.metric("Total Predicted Demand", f"{total_predicted_demand:,}")
+        m1.metric(
+            "Total Products Evaluated", 
+            f"{total_products:,}", 
+            help="Total count of unique product rows processed from your uploaded inventory file."
+        )
+        m2.metric(
+            "Items Requiring Reorder", 
+            f"{reorder_count:,}", 
+            delta=f"-{reorder_count} urgent" if reorder_count > 0 else "All Good", 
+            delta_color="inverse" if reorder_count > 0 else "normal", 
+            help="Number of products whose current stock is lower than the ML-predicted demand."
+        )
+        m3.metric(
+            "Total Predicted Demand", 
+            f"{total_predicted_demand:,}", 
+            help="The sum of all expected product demand units combined across your entire inventory catalog."
+        )
         
         st.markdown("<br>", unsafe_allow_html=True)
         
