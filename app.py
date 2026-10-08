@@ -7,11 +7,11 @@ import os
 # Page Configuration
 st.set_page_config(
     page_title="AI Inventory Forecasting & Reorder Dashboard",
-    page_icon="📦",
+    page_icon="📊",
     layout="wide"
 )
 
-st.title("📦 AI Inventory Forecasting & Reorder Dashboard")
+st.title("📊 AI Inventory Forecasting & Reorder Dashboard")
 st.markdown("Upload your inventory CSV file to generate dynamic demand predictions, track reorders, and analyze trends.")
 
 # Load Trained Model
@@ -26,31 +26,32 @@ def load_model():
 model = load_model()
 
 if model is None:
-    st.error("⚠️ Model file `xgboost_inventory_model.pkl` not found in the repository root directory!")
+    st.error("⚠️ Model file 'xgboost_inventory_model.pkl' not found in the repository root directory!")
 else:
-    # Main Page File Uploader (No Sidebar)
+    # Main file uploader (no sidebar)
     st.markdown("---")
     uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
-    
+
     if uploaded_file is not None:
         try:
             df = pd.read_csv(uploaded_file)
             st.success("Successfully loaded uploaded CSV file!")
-            
-            # --- PREPROCESSING MATCHING TRAINING SCRIPT 100% ---
+
+            # --- PREPROCESSING MATCHING TRAINING SCRIPT ---
             model_df = df.copy()
-            
+
             # 1. Handle truncated column names from Excel display
             rename_map = {}
             for col in model_df.columns:
                 if col.startswith('Previous_S'):
                     rename_map[col] = 'Previous_Sales'
-                elif col.startswith('Stock_Avai'):
+                elif col.startswith('stock_avail') or col.startswith('Stock_Avail'):
                     rename_map[col] = 'Stock_Available'
+            
             model_df = model_df.rename(columns=rename_map)
 
-            if 'Stock_Aval' in model_df.columns and 'Stock_Available' not in model_df.columns:
-                model_df['Stock_Available'] = model_df['Stock_Aval']
+            if 'Stock_Avail' in model_df.columns and 'Stock_Available' not in model_df.columns:
+                model_df['Stock_Available'] = model_df['Stock_Avail']
 
             # 2. Extract Date / Time features exactly like training script
             if 'Date' in model_df.columns:
@@ -58,26 +59,27 @@ else:
                 model_df['Year'] = model_df['Date'].dt.year
                 model_df['Month'] = model_df['Date'].dt.month
                 model_df['Day'] = model_df['Date'].dt.day
-                model_df['DayOfWeek'] = model_df['Date'].dt.dayofweek
+                model_df['DayofWeek'] = model_df['Date'].dt.dayofweek
 
-            # 3. Select exact feature subset used in training
+            # 3. Select exact features used in training
             training_features = [
-                'Price', 'Discount', 'Holiday', 'Previous_Sales', 
-                'Stock_Available', 'Year', 'Month', 'Day', 'DayOfWeek', 'Category'
+                'Price', 'Discount', 'Holiday', 'Previous_Sales',
+                'Stock_Available', 'Year', 'Month', 'Day', 'DayofWeek', 'Category'
             ]
-            
+
+            # FIXED: Nested missing feature verification properly inside the missing condition check
             for col in training_features:
                 if col not in model_df.columns:
                     if col in ['Price', 'Discount', 'Previous_Sales', 'Stock_Available']:
                         model_df[col] = 0.0
-                    elif col in ['Holiday', 'Year', 'Month', 'Day', 'DayOfWeek']:
+                    elif col in ['Holiday', 'Year', 'Month', 'Day', 'DayofWeek']:
                         model_df[col] = 0
                     elif col == 'Category':
                         model_df[col] = 'Unknown'
 
             X_subset = model_df[training_features]
 
-            # 4. One-hot encode Category exactly like training script
+            # 4. One-hot encode category exactly like training script
             X_encoded = pd.get_dummies(X_subset, columns=['Category'], drop_first=True)
 
             # 5. Align precisely with model.feature_names_in_
@@ -93,9 +95,9 @@ else:
             # Run Predictions
             preds = model.predict(X_predict)
             df['Predicted_Demand'] = np.round(preds, 2)
-            
+
             # Reorder Logic & Safety Buffer
-            stock_col = 'Stock_Available' if 'Stock_Available' in df.columns else ('Stock_Aval' if 'Stock_Aval' in df.columns else None)
+            stock_col = 'Stock_Available' if 'Stock_Available' in df.columns else ('Stock_Avail' if 'Stock_Avail' in df.columns else None)
             if stock_col:
                 df['Reorder_Required'] = df[stock_col] < df['Predicted_Demand']
             else:
@@ -134,21 +136,22 @@ else:
             # --- DETAILED OUTPUT TABLE & FILTERING ---
             st.markdown("---")
             st.subheader("📋 Detailed Product Evaluation Table")
-            
+
             table_filter = st.radio(
                 "Filter Table View:",
                 ["All Products", "⚠️ Reorder Required Only"],
                 horizontal=True
             )
-            
+
             display_df = df.copy()
             if table_filter == "⚠️ Reorder Required Only":
                 if 'Reorder_Required' in display_df.columns:
                     display_df = display_df[display_df['Reorder_Required'] == True]
-            
+
             st.dataframe(display_df, use_container_width=True)
 
             # --- DOWNLOAD BUTTON ---
+            st.markdown("---")
             csv_data = df.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="📥 Download Batch Predictions CSV",
@@ -160,4 +163,4 @@ else:
         except Exception as e:
             st.error(f"Error processing the uploaded file: {e}")
     else:
-        st.info("👆 Please upload your CSV file above to get started.")
+        st.info("💡 Please upload your CSV file above to get started.")
