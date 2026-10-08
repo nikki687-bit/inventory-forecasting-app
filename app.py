@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 # Page configuration
 st.set_page_config(page_title="Inventory Demand Forecasting Dashboard", layout="wide")
@@ -22,7 +20,7 @@ except Exception as e:
     st.error(f"Error loading model: {e}")
     st.stop()
 
-# File uploader widget (No fallback data – waits exclusively for user file)
+# File uploader widget (Waits exclusively for user file)
 uploaded_file = st.file_uploader("Upload Batch Inventory CSV File", type=["csv"])
 
 if uploaded_file is not None:
