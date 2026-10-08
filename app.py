@@ -13,14 +13,14 @@ st.set_page_config(
 
 # --- MAIN TITLE & HEADER ---
 st.title("📊 AI Inventory Forecasting & Reorder Dashboard")
-st.markdown("Upload any inventory CSV file to generate dynamic demand predictions.")
+st.markdown("Upload any inventory CSV or Excel file to generate dynamic demand predictions.")
 
-# --- FILE UPLOADER ---
-uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
+# --- FILE UPLOADER (Supports CSV, Excel, and Text) ---
+uploaded_file = st.file_uploader("Upload inventory file (CSV, Excel, or Text)", type=["csv", "xlsx", "xls", "txt"])
 
 # --- INLINE FORMAT GUIDE & TEMPLATE DOWNLOAD ---
-with st.expander("📂 View CSV Format Guide & Download Sample Template"):
-    st.markdown("Ensure your uploaded CSV contains the correct column identifiers or use the smart mapper if your column names differ:")
+with st.expander("📂 View File Format Guide & Download Sample Template"):
+    st.markdown("Ensure your uploaded file contains the correct column identifiers or use the smart mapper if your column names differ:")
     st.markdown("""
     - **`Product_ID`** (Unique identifier for each product)
     - **`Category`** (e.g., Electronics, Groceries)
@@ -58,7 +58,16 @@ st.markdown("---")
 # --- MAIN LOGIC & DASHBOARD ---
 if uploaded_file is not None:
     try:
-        df = pd.read_csv(uploaded_file)
+        file_name = uploaded_file.name.lower()
+        
+        # Read based on file extension
+        if file_name.endswith(('.xlsx', '.xls')):
+            df = pd.read_excel(uploaded_file)
+        elif file_name.endswith('.txt'):
+            df = pd.read_csv(uploaded_file, sep=None, engine='python')
+        else:
+            df = pd.read_csv(uploaded_file)
+            
         st.success(f"Successfully uploaded `{uploaded_file.name}`! ({len(df)} rows found)")
         
         available_cols = list(df.columns)
@@ -106,7 +115,7 @@ if uploaded_file is not None:
         with st.expander("⚙️ Smart Column Mapping (Auto-detected — Click to expand/adjust)", expanded=False):
             st.info(
                 "💡 **How Smart Mapping Works:**\n"
-                "This feature bridges your custom CSV headers with the machine learning model's requirements. "
+                "This feature bridges your custom file headers with the machine learning model's requirements. "
                 "If your file uses alternative column names (e.g., `Unit_Price` for price, `Current_Stock` for stock), "
                 "the system auto-detects them or lets you map them manually here. This means you **never need to modify or reformat your original spreadsheet** "
                 "to make it compatible with the dashboard!"
@@ -234,20 +243,3 @@ if uploaded_file is not None:
         with chart_col2:
             st.subheader("Demand Distribution / Trend")
             st.line_chart(processed_df['Predicted_Demand'])
-            
-        st.markdown("---")
-        
-        # Detailed Table View
-        st.markdown("### 📋 Detailed Product Evaluation Table")
-        filter_view = st.radio("Filter Table View:", ["All Products", "Reorder Required Only"], horizontal=True)
-        
-        display_df = processed_df.copy()
-        if filter_view == "Reorder Required Only":
-            display_df = display_df[display_df['Reorder_Required'] == True]
-            
-        st.dataframe(display_df, use_container_width=True)
-        
-    except Exception as e:
-        st.error(f"An error occurred while processing your file: {e}")
-else:
-    st.info("💡 Please upload your CSV file above to get started.")
