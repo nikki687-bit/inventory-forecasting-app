@@ -41,7 +41,7 @@ if uploaded_file is not None:
             # One-hot encode Category
             model_df = pd.get_dummies(model_df, columns=['Category'], drop_first=True)
             
-            # Align features with model expectations
+           # Align features with model expectations
             if hasattr(model, "feature_names_in_"):
                 expected_features = model.feature_names_in_
                 for col in expected_features:
@@ -50,6 +50,10 @@ if uploaded_file is not None:
                 X_predict = model_df[expected_features]
             else:
                 X_predict = model_df.select_dtypes(include=[np.number])
+
+            # Inspect features to check why predictions are constant
+            st.write("Model expected features:", model.feature_names_in_)
+            st.write("Columns in model_df:", model_df.columns.tolist())
 
             # Run Predictions
             preds = model.predict(X_predict)
