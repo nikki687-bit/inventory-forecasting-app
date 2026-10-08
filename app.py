@@ -74,7 +74,6 @@ if uploaded_file is not None:
             # --- SKIP MAPPING UI ENTIRELY ---
             st.success("✅ Standard column names detected! Bypassing mapping screen.")
             
-            # Helper to fetch column by keyword case-insensitively
             def get_col_by_keyword(kw):
                 for col in df.columns:
                     if kw in col.lower():
@@ -117,7 +116,11 @@ if uploaded_file is not None:
         else:
             # --- SHOW MAPPING UI ONLY WHEN NAMES DIFFER ---
             st.markdown("### ⚙️ Smart Column Mapping Required")
-            st.markdown("Your file has custom column names. Please map them below:")
+            st.info(
+                "💡 **What is this?** Since your uploaded file uses custom or non-standard column names, "
+                "this feature lets you match your CSV headers directly to what the prediction model expects "
+                "without needing to manually edit your original file."
+            )
             
             available_cols = list(df.columns)
             
