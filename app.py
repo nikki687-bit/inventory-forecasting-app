@@ -59,12 +59,12 @@ else:
                 model_df['Year'] = model_df['Date'].dt.year
                 model_df['Month'] = model_df['Date'].dt.month
                 model_df['Day'] = model_df['Date'].dt.day
-                model_df['DayofWeek'] = model_df['Date'].dt.dayofweek
+                model_df['DayOfWeek'] = model_df['Date'].dt.dayofweek
 
-            # 3. Select exact features used in training
+            # 3. Select exact features used in training (Matches your training features array casing)
             training_features = [
                 'Price', 'Discount', 'Holiday', 'Previous_Sales',
-                'Stock_Available', 'Year', 'Month', 'Day', 'DayofWeek', 'Category'
+                'Stock_Available', 'Year', 'Month', 'Day', 'DayOfWeek', 'Category'
             ]
 
             # FIXED: Nested missing feature verification properly inside the missing condition check
@@ -72,7 +72,7 @@ else:
                 if col not in model_df.columns:
                     if col in ['Price', 'Discount', 'Previous_Sales', 'Stock_Available']:
                         model_df[col] = 0.0
-                    elif col in ['Holiday', 'Year', 'Month', 'Day', 'DayofWeek']:
+                    elif col in ['Holiday', 'Year', 'Month', 'Day', 'DayOfWeek']:
                         model_df[col] = 0
                     elif col == 'Category':
                         model_df[col] = 'Unknown'
