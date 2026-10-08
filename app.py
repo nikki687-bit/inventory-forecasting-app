@@ -12,46 +12,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- MODERN UI STYLING (CUSTOM CSS) ---
-st.markdown("""
-    <style>
-    /* Main background & font adjustments */
-    .main {
-        background-color: #f8f9fa;
-    }
-    /* Metric Card Styling */
-    div[data-testid="stMetric"] {
-        background-color: #ffffff;
-        border: 1px solid #e0e0e0;
-        padding: 15px 20px;
-        border-radius: 12px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-    }
-    div[data-testid="stMetric"] label {
-        color: #6c757d !important;
-        font-weight: 600;
-    }
-    /* Expander styling */
-    .streamlit-expanderHeader {
-        background-color: #ffffff;
-        border: 1px solid #e0e0e0;
-        border-radius: 8px;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- SIDEBAR: CONTROLS & UPLOADER ---
+# --- SIDEBAR: FORMAT GUIDE & TEMPLATE ONLY ---
 with st.sidebar:
     st.image("https://img.icons8.com/color/96/combo-chart.png", width=64)
-    st.header("Inventory Control")
-    st.markdown("Upload your stock sheet to run predictions.")
+    st.header("Inventory Guide")
+    st.markdown("Check formatting requirements or download the sample template.")
     
-    uploaded_file = st.file_uploader("Upload File", type=["csv", "xlsx", "xls", "txt"])
-    
-    st.markdown("---")
-    
-    # Format Guide Expander inside Sidebar
-    with st.expander("📂 View File Format Guide"):
+    with st.expander("📂 View File Format Guide", expanded=True):
         st.markdown("""
         Ensure your file has headers like:
         - `Product_ID`
@@ -85,6 +52,12 @@ with st.sidebar:
 # --- MAIN TITLE & HEADER ---
 st.title("📦 AI Inventory & Demand Forecasting Hub")
 st.markdown("Real-time automated stock analysis, demand prediction, and smart reorder alerts.")
+st.markdown("---")
+
+# --- CENTRAL FILE UPLOADER ---
+st.subheader("📁 Upload Inventory File")
+uploaded_file = st.file_uploader("Choose a CSV, Excel, or Text file", type=["csv", "xlsx", "xls", "txt"])
+
 st.markdown("---")
 
 # --- MAIN LOGIC & DASHBOARD ---
@@ -258,19 +231,13 @@ if uploaded_file is not None:
         if filter_view == "Reorder Required Only":
             display_df = display_df[display_df['Reorder_Required'] == True]
             
-        # Highlight reorder rows softly in red
+        # Highlight reorder rows softly
         def highlight_reorders(row):
-            return ['background-color: #fff5f5' if row['Reorder_Required'] else '' for _ in row]
+            return ['background-color: rgba(255, 75, 75, 0.15)' if row['Reorder_Required'] else '' for _ in row]
             
         st.dataframe(display_df.style.apply(highlight_reorders, axis=1), use_container_width=True)
         
     except Exception as e:
         st.error(f"An error occurred while processing your file: {e}")
 else:
-    # Empty State Hero Section
-    st.markdown("""
-        <div style="padding: 40px; text-align: center; background-color: #ffffff; border: 1px dashed #cccccc; border-radius: 12px;">
-            <h3>👋 Welcome to your Inventory Dashboard</h3>
-            <p style="color: #666666;">Use the <b>sidebar on the left</b> to upload your inventory spreadsheet (CSV or Excel) and generate instant ML forecasts.</p>
-        </div>
-    """, unsafe_allow_html=True)
+    st.info("👆 Please upload your inventory file above using the uploader to get started.")
