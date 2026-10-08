@@ -4,16 +4,15 @@ import numpy as np
 import pickle
 import os
 
-# Set page configuration
+# Page Configuration
 st.set_page_config(
-    page_title="Inventory Demand Forecasting",
+    page_title="AI Inventory Forecasting & Reorder Dashboard",
     page_icon="📦",
     layout="wide"
 )
 
-# App Title & Description
-st.title("📦 AI Inventory Demand Forecasting & Reorder System")
-st.markdown("Upload your batch inventory CSV file to generate predictive demand analytics, safety buffers, and automated reorder recommendations.")
+st.title("📦 AI Inventory Forecasting & Reorder Dashboard")
+st.markdown("Upload your retail inventory CSV file to generate dynamic demand predictions, track reorders, and analyze trends.")
 
 # Load Trained Model
 @st.cache_resource
@@ -27,24 +26,46 @@ def load_model():
 model = load_model()
 
 if model is None:
-    st.error("Model file 'xgboost_inventory_model.pkl' not found in the repository. Please ensure it is uploaded.")
+    st.error("⚠️ Model file `xgboost_inventory_model.pkl` not found in the repository root directory!")
 else:
-    # File uploader widget
-    uploaded_file = st.file_uploader("Upload Batch Inventory CSV File", type=["csv"])
-
+    # Sidebar File Uploader
+    st.sidebar.header("Data Upload")
+    uploaded_file = st.sidebar.file_uploader("Upload Inventory CSV", type=["csv"])
+    
     if uploaded_file is not None:
         try:
             df = pd.read_csv(uploaded_file)
-            st.success("Successfully loaded uploaded CSV file!")
+            st.sidebar.success("Successfully loaded uploaded CSV file!")
             
-            # Preprocessing matching the loaded model's expected features
+            # --- ROBUST PREPROCESSING PIPELINE ---
             model_df = df.copy()
             
-            # Handle categorical 'Category' column if present as raw text
+            # 1. Handle truncated column names from Excel display (e.g., Previous_S, Stock_Avai)
+            rename_map = {}
+            for col in model_df.columns:
+                if col.startswith('Previous_S'):
+                    rename_map[col] = 'Previous_Sales'
+                elif col.startswith('Stock_Avai'):
+                    rename_map[col] = 'Stock_Available'
+            model_df = model_df.rename(columns=rename_map)
+
+            # Ensure standard stock column exists for reorder logic
+            if 'Stock_Aval' in model_df.columns and 'Stock_Available' not in model_df.columns:
+                model_df['Stock_Available'] = model_df['Stock_Aval']
+
+            # 2. Extract Date / Time features matching the training pipeline
+            if 'Date' in model_df.columns:
+                model_df['Date'] = pd.to_datetime(model_df['Date'])
+                model_df['Year'] = model_df['Date'].dt.year
+                model_df['Month'] = model_df['Date'].dt.month
+                model_df['Day'] = model_df['Date'].dt.day
+                model_df['DayOfWeek'] = model_df['Date'].dt.dayofweek
+
+            # 3. One-hot encode Category column
             if 'Category' in model_df.columns:
                 model_df = pd.get_dummies(model_df, columns=['Category'], drop_first=True)
-            
-            # Align features with model expectations
+
+            # 4. Align features precisely with model expectations
             if hasattr(model, "feature_names_in_"):
                 expected_features = model.feature_names_in_
                 for col in expected_features:
@@ -58,69 +79,57 @@ else:
             preds = model.predict(X_predict)
             df['Predicted_Demand'] = np.round(preds, 2)
             
-            # Calculate Safety Buffer & Reorder Recommendations
-            df['Safety_Buffer'] = np.round(df['Predicted_Demand'] * 0.15, 2)
-            df['Recommended_Reorder'] = np.maximum(0, np.ceil((df['Predicted_Demand'] + df['Safety_Buffer']) - df['Stock_Available'])) if 'Stock_Available' in df.columns else np.maximum(0, np.ceil((df['Predicted_Demand'] + df['Safety_Buffer']) - df['Current_Stock']))
-            
-            stock_col = 'Stock_Available' if 'Stock_Available' in df.columns else 'Current_Stock'
-            df['Status'] = np.where(df[stock_col] < (df['Predicted_Demand'] + df['Safety_Buffer']), 'Action Required: Reorder', 'Stock Sufficient')
+            # Reorder Logic & Safety Buffer
+            stock_col = 'Stock_Available' if 'Stock_Available' in df.columns else ('Stock_Aval' if 'Stock_Aval' in df.columns else None)
+            if stock_col:
+                df['Reorder_Required'] = df[stock_col] < df['Predicted_Demand']
+            else:
+                df['Reorder_Required'] = False
 
-            # Metrics Summary Section
-            total_products = len(df)
-            items_reorder = len(df[df['Status'] == 'Action Required: Reorder'])
-            total_demand = int(df['Predicted_Demand'].sum())
-
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Total Products Evaluated", f"{total_products:,}")
-            col2.metric("Items Requiring Reorder", f"{items_reorder:,}")
-            col3.metric("Total Predicted Demand", f"{total_demand:,}")
-
+            # --- METRICS DISPLAY ---
             st.markdown("---")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Products Evaluated", len(df))
+            with col2:
+                reorder_count = int(df['Reorder_Required'].sum()) if 'Reorder_Required' in df.columns else 0
+                st.metric("Items Requiring Reorder", reorder_count)
+            with col3:
+                total_predicted = int(df['Predicted_Demand'].sum())
+                st.metric("Total Predicted Demand", total_predicted)
 
-            # Visualizations Section (Native Streamlit Bar & Line Charts)
+            # --- VISUALIZATIONS ---
+            st.markdown("---")
             st.subheader("📊 Inventory Analytics & Visualizations")
 
-            g_col1, g_col2 = st.columns(2)
+            chart_col1, chart_col2 = st.columns(2)
 
-            with g_col1:
-                st.markdown("**Predicted Demand by Category (Bar Chart)**")
-                # Find category columns or fallback to grouping
-                cat_cols = [c for c in df.columns if 'Category' in c]
-                if cat_cols:
-                    # Melt or sum by category
-                    # If columns are one-hot encoded:
-                    cat_summary = {}
-                    for col in cat_cols:
-                        cat_name = col.replace('Category_', '')
-                        cat_summary[cat_name] = df[df[col] == 1]['Predicted_Demand'].sum()
-                    st.bar_chart(pd.Series(cat_summary))
-                elif 'Category' in df.columns:
-                    cat_demand = df.groupby('Category')['Predicted_Demand'].sum()
-                    st.bar_chart(cat_demand)
+            with chart_col1:
+                st.markdown("##### Predicted Demand by Category")
+                if 'Category' in df.columns:
+                    cat_demand = df.groupby('Category')['Predicted_Demand'].sum().reset_index()
+                    st.bar_chart(cat_demand.set_index('Category'))
                 else:
-                    st.bar_chart(df['Predicted_Demand'])
+                    st.info("Category column not available for breakdown.")
 
-            with g_col2:
-                st.markdown("**Demand Distribution / Trend**")
-                if 'Date' in df.columns:
-                    date_trend = df.groupby('Date')['Predicted_Demand'].sum()
-                    st.line_chart(date_trend)
-                else:
-                    st.line_chart(df['Predicted_Demand'])
+            with chart_col2:
+                st.markdown("##### Demand Distribution / Trend")
+                st.line_chart(df['Predicted_Demand'].reset_index(drop=True))
 
+            # --- DATAFRAME VIEW & DOWNLOAD ---
             st.markdown("---")
-
-            # Detailed Output Table & Batch CSV Download
-            st.subheader("📋 Detailed Output Table")
-            st.dataframe(df, use_container_width=True)
+            st.subheader("📋 Detailed Product Evaluation Table")
+            st.dataframe(df)
 
             csv_data = df.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label="📥 Download Batch Prediction Results (CSV)",
+                label="📥 Download Batch Predictions CSV",
                 data=csv_data,
-                file_name="batch_inventory_predictions.csv",
+                file_name="inventory_predictions.csv",
                 mime="text/csv"
             )
 
         except Exception as e:
-                st.error(f"An error occurred while processing the file: {e}")
+            st.error(f"Error processing the uploaded file: {e}")
+    else:
+        st.info("👈 Please upload your `clean_retail_inventory.csv` file in the sidebar to get started.")
