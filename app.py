@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # Page configuration
 st.set_page_config(page_title="Inventory Demand Forecasting Dashboard", layout="wide")
@@ -66,9 +68,49 @@ if uploaded_file is not None:
             total_demand = int(df['Predicted_Demand'].sum())
 
             col1, col2, col3 = st.columns(3)
-            col1.metric("Total Products Evaluated", total_products)
-            col2.metric("Items Requiring Reorder", items_reorder)
-            col3.metric("Total Predicted Demand", total_demand)
+            col1.metric("Total Products Evaluated", f"{total_products:,}")
+            col2.metric("Items Requiring Reorder", f"{items_reorder:,}")
+            col3.metric("Total Predicted Demand", f"{total_demand:,}")
+
+            st.markdown("---")
+
+            # --- VISUALIZATIONS SECTION (Bar & Line Graphs) ---
+            st.subheader("📊 Inventory Analytics & Visualizations")
+            
+            g_col1, g_col2 = st.columns(2)
+
+            with g_col1:
+                st.markdown("**Predicted Demand by Category (Bar Chart)**")
+                if 'Category' in df.columns:
+                    fig, ax = plt.subplots(figsize=(7, 4))
+                    sns.barplot(data=df, x='Category', y='Predicted_Demand', estimator=sum, errorbar=None, palette='viridis', ax=ax)
+                    ax.set_title("Total Predicted Demand per Category", fontsize=11)
+                    ax.set_xlabel("Category", fontsize=10)
+                    ax.set_ylabel("Total Predicted Demand", fontsize=10)
+                    plt.xticks(rotation=30)
+                    st.pyplot(fig)
+                else:
+                    st.info("Category column not found for plotting.")
+
+            with g_col2:
+                st.markdown("**Demand Trend Over Time (Line Chart)**")
+                if 'Date' in df.columns:
+                    fig, ax = plt.subplots(figsize=(7, 4))
+                    # Group by Date to show trend over time cleanly
+                    date_trend = df.groupby('Date')['Predicted_Demand'].sum().reset_index()
+                    sns.lineplot(data=date_trend, x='Date', y='Predicted_Demand', marker='o', color='#1f77b4', ax=ax)
+                    ax.set_title("Total Predicted Demand Trend Over Time", fontsize=11)
+                    ax.set_xlabel("Date", fontsize=10)
+                    ax.set_ylabel("Total Predicted Demand", fontsize=10)
+                    # Limit tick frequency if there are many dates to keep it readable
+                    if len(date_trend) > 10:
+                        ax.set_xticks(date_trend['Date'][::max(1, len(date_trend)//10)])
+                    plt.xticks(rotation=30)
+                    st.pyplot(fig)
+                else:
+                    st.info("Date column not found for trend line chart.")
+
+            st.markdown("---")
 
             # Detailed Output Table
             st.subheader("📋 Detailed Output Table")
