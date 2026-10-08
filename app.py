@@ -95,7 +95,7 @@ if uploaded_file is not None:
         
         def_date = get_default(['date', 'time', 'day'], [])
         
-        # Robust Product ID / Name finder (prioritizes string/ID columns over numbers)
+        # Robust Product ID / Name finder
         def_id = None
         for col in available_cols:
             if any(k in col.lower() for k in ['id', 'product', 'item', 'name', 'sku']):
@@ -104,9 +104,16 @@ if uploaded_file is not None:
         if not def_id:
             def_id = available_cols[0]
 
-        # --- SMART MAPPING WRAPPED IN A CLOSED EXPANDER (Zero Friction) ---
-        with st.expander("⚙️ Smart Column Mapping (Auto-detected — Click to adjust if needed)", expanded=False):
-            st.markdown("We automatically mapped your columns below. You can change them here if any mapping is incorrect:")
+        # --- SMART MAPPING WITH DETAILED EXPLANATORY NOTE ---
+        with st.expander("⚙️ Smart Column Mapping (Auto-detected — Click to expand/adjust)", expanded=False):
+            st.info(
+                "💡 **How Smart Mapping Works:**\n"
+                "This feature bridges your custom CSV headers with the machine learning model's requirements. "
+                "If your file uses alternative column names (e.g., `Unit_Cost` for price, `Qty` for stock, or `Department` for category), "
+                "the system auto-detects them or lets you map them manually here. This means you **never need to modify or reformat your original spreadsheet** "
+                "to make it compatible with the dashboard!"
+            )
+            
             col_map1, col_map2, col_map3 = st.columns(3)
             with col_map1:
                 price_col = st.selectbox("Price Column", available_cols, index=available_cols.index(def_price) if def_price in available_cols else 0)
