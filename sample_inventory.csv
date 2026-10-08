@@ -1,0 +1,9 @@
+Unit_Price,Current_Stock,Historical_Avg,Promotion,Category_Electronics,Category_Clothing,Category_Home,Target_Demand
+15.0,100,110,0,0,1,0,115
+120.0,20,25,1,1,0,0,28
+45.0,50,55,0,0,0,1,52
+300.0,10,12,1,1,0,0,14
+25.0,200,190,0,0,1,0,185
+80.0,40,45,1,1,0,0,48
+150.0,15,18,0,1,0,0,20
+60.0,80,75,1,0,1,0,78
