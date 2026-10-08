@@ -6,7 +6,7 @@ import os
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Inventory AI Hub",
+    page_title="Product Demand & Stock Recommendation Hub",
     page_icon="📦",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -50,7 +50,7 @@ with st.sidebar:
     st.caption("🚀 Powered by XGBoost & Streamlit")
 
 # --- MAIN TITLE & HEADER ---
-st.title("📦 AI Inventory & Demand Forecasting Hub")
+st.title("📦Product Demand & Stock Recommendation Hub")
 st.markdown("Real-time automated stock analysis, demand prediction, and smart reorder alerts.")
 st.markdown("---")
 
