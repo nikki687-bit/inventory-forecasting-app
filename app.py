@@ -74,7 +74,6 @@ if uploaded_file is not None:
                 if col not in used_cols:
                     if any(kw in col.lower() for kw in keywords):
                         return col
-            # Fallback to first available unused column
             for col in available_cols:
                 if col not in used_cols:
                     return col
@@ -90,7 +89,7 @@ if uploaded_file is not None:
         def_discount = get_default(['discount', 'offer', 'markdown', 'promo'], used)
         used.append(def_discount)
         
-        def_prev_sales = get_default(['previous', 'sales', 'past', 'sold', 'demand'], used)
+        def_prev_sales = get_default(['previous', 'sales', 'past', 'sold', 'demand', 'target'], used)
         used.append(def_prev_sales)
         
         def_holiday = get_default(['holiday', 'festival', 'promotion', 'is_holiday'], used)
@@ -104,14 +103,14 @@ if uploaded_file is not None:
 
         col_map1, col_map2, col_map3 = st.columns(3)
         with col_map1:
-            price_col = st.selectbox("Price Column", available_cols, index=available_cols.index(def_price))
-            stock_col = st.selectbox("Stock Available Column", available_cols, index=available_cols.index(def_stock))
+            price_col = st.selectbox("Price Column", available_cols, index=available_cols.index(def_price) if def_price in available_cols else 0)
+            stock_col = st.selectbox("Stock Available Column", available_cols, index=available_cols.index(def_stock) if def_stock in available_cols else 0)
         with col_map2:
-            discount_col = st.selectbox("Discount Column", available_cols, index=available_cols.index(def_discount))
-            prev_sales_col = st.selectbox("Previous Sales Column", available_cols, index=available_cols.index(def_prev_sales))
+            discount_col = st.selectbox("Discount Column", available_cols, index=available_cols.index(def_discount) if def_discount in available_cols else 0)
+            prev_sales_col = st.selectbox("Previous Sales Column", available_cols, index=available_cols.index(def_prev_sales) if def_prev_sales in available_cols else 0)
         with col_map3:
-            holiday_col = st.selectbox("Holiday Column", available_cols, index=available_cols.index(def_holiday))
-            category_col = st.selectbox("Category Column", available_cols, index=available_cols.index(def_category))
+            holiday_col = st.selectbox("Holiday Column", available_cols, index=available_cols.index(def_holiday) if def_holiday in available_cols else 0)
+            category_col = st.selectbox("Category Column", available_cols, index=available_cols.index(def_category) if def_category in available_cols else 0)
 
         # Base processed dataframe for display and prediction
         processed_df = pd.DataFrame()
@@ -201,7 +200,7 @@ if uploaded_file is not None:
             st.subheader("Demand Distribution / Trend")
             st.line_chart(processed_df['Predicted_Demand'])
             
-        st.markdown---()
+        st.markdown("---")
         
         # Detailed Table View
         st.markdown("### 📋 Detailed Product Evaluation Table")
