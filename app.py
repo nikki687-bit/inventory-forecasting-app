@@ -59,12 +59,13 @@ else:
                 model_df['Year'] = model_df['Date'].dt.year
                 model_df['Month'] = model_df['Date'].dt.month
                 model_df['Day'] = model_df['Date'].dt.day
-                model_df['DayOfWeek'] = model_df['Date'].dt.dayofweek
+                # FIXED: Case-matched exactly to Colab notebook 'DayofWeek' (lowercase 'w')
+                model_df['DayofWeek'] = model_df['Date'].dt.dayofweek
 
-            # 3. Select exact features used in training (Matches your training features array casing)
+            # 3. Select exact features used in training
             training_features = [
                 'Price', 'Discount', 'Holiday', 'Previous_Sales',
-                'Stock_Available', 'Year', 'Month', 'Day', 'DayOfWeek', 'Category'
+                'Stock_Available', 'Year', 'Month', 'Day', 'DayofWeek', 'Category'
             ]
 
             # FIXED: Nested missing feature verification properly inside the missing condition check
@@ -72,7 +73,7 @@ else:
                 if col not in model_df.columns:
                     if col in ['Price', 'Discount', 'Previous_Sales', 'Stock_Available']:
                         model_df[col] = 0.0
-                    elif col in ['Holiday', 'Year', 'Month', 'Day', 'DayOfWeek']:
+                    elif col in ['Holiday', 'Year', 'Month', 'Day', 'DayofWeek']:
                         model_df[col] = 0
                     elif col == 'Category':
                         model_df[col] = 'Unknown'
