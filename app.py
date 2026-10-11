@@ -111,7 +111,7 @@ with st.container():
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# --- DATA PROCESSING & PREDICTION PIPELINE ---
+# --- DATA PROCESSING, INTERACTIVE MAPPING & PREDICTION PIPELINE ---
 if uploaded_file is not None:
     try:
         if uploaded_file.name.endswith('.csv'):
@@ -121,15 +121,74 @@ if uploaded_file is not None:
         
         st.success(f"Successfully loaded **{uploaded_file.name}**")
         
-        # Smart Column Mapping / Sanitization logic
-        df.columns = df.columns.str.strip()
-        
+        # --- INTERACTIVE COLUMN MAPPING EXPANDER ---
+        with st.expander("⚙️ Advanced Column Mapping (If headers differ)", expanded=False):
+            st.markdown("Map your uploaded file columns to the required model features below:")
+            cols_available = ["-- Ignore / None --"] + df.columns.tolist()
+            
+            map_product_id = st.selectbox("Map to Product_ID", cols_available, index=0 if "-- Ignore / None --" in cols_available else 1)
+            map_category = st.selectbox("Map to Category", cols_available, index=0)
+            map_price = st.selectbox("Map to Price", cols_available, index=0)
+            map_discount = st.selectbox("Map to Discount", cols_available, index=0)
+            map_holiday = st.selectbox("Map to Holiday", cols_available, index=0)
+            map_prev_sales = st.selectbox("Map to Previous_Sales", cols_available, index=0)
+            map_stock = st.selectbox("Map to Stock_Available", cols_available, index=0)
+            
+            if st.button("Apply Custom Mapping"):
+                mapping_dict = {}
+                if map_product_id != "-- Ignore / None --": mapping_dict[map_product_id] = 'Product_ID'
+                if map_category != "-- Ignore / None --": mapping_dict[map_category] = 'Category'
+                if map_price != "-- Ignore / None --": mapping_dict[map_price] = 'Price'
+                if map_discount != "-- Ignore / None --": mapping_dict[map_discount] = 'Discount'
+                if map_holiday != "-- Ignore / None --": mapping_dict[map_holiday] = 'Holiday'
+                if map_prev_sales != "-- Ignore / None --": mapping_dict[map_prev_sales] = 'Previous_Sales'
+                if map_stock != "-- Ignore / None --": mapping_dict[map_stock] = 'Stock_Available'
+                
+                df = df.rename(columns=mapping_dict)
+                st.success("Custom column mapping applied successfully!")
+
+        # --- AUTO-DETECTION FALLBACK FOR UNMAPPED COLUMNS ---
+        original_cols = df.columns.tolist()
+        lower_cols = [c.strip().lower() for c in original_cols]
+        rename_map = {}
+        for orig, low in zip(original_cols, lower_cols):
+            if any(k in low for k in ['prod', 'item_id', 'id', 'sku']) and 'Product_ID' not in df.columns:
+                rename_map[orig] = 'Product_ID'
+            elif any(k in low for k in ['cat', 'type', 'department']) and 'Category' not in df.columns:
+                rename_map[orig] = 'Category'
+            elif any(k in low for k in ['price', 'cost', 'rate', 'msrp']) and 'Price' not in df.columns:
+                rename_map[orig] = 'Price'
+            elif any(k in low for k in ['disc', 'offer', 'markdown']) and 'Discount' not in df.columns:
+                rename_map[orig] = 'Discount'
+            elif any(k in low for k in ['holid', 'fest', 'event', 'season']) and 'Holiday' not in df.columns:
+                rename_map[orig] = 'Holiday'
+            elif any(k in low for k in ['prev', 'past', 'history', 'sales']) and 'Previous_Sales' not in df.columns:
+                rename_map[orig] = 'Previous_Sales'
+            elif any(k in low for k in ['stock', 'avail', 'inventory', 'quantity', 'on_hand']) and 'Stock_Available' not in df.columns:
+                rename_map[orig] = 'Stock_Available'
+                
+        df = df.rename(columns=rename_map)
+
+        # Default fallback values for missing columns
+        if 'Product_ID' not in df.columns:
+            df['Product_ID'] = [f"SKU-{100+i}" for i in range(len(df))]
+        if 'Category' not in df.columns:
+            df['Category'] = "General"
+        if 'Price' not in df.columns:
+            df['Price'] = 50.0
+        if 'Discount' not in df.columns:
+            df['Discount'] = 0.0
+        if 'Holiday' not in df.columns:
+            df['Holiday'] = 0
+        if 'Previous_Sales' not in df.columns:
+            df['Previous_Sales'] = 10
+        if 'Stock_Available' not in df.columns:
+            df['Stock_Available'] = 15
+
+        # Sanitization via Pandas
         numeric_cols = ['Price', 'Discount', 'Holiday', 'Previous_Sales', 'Stock_Available']
         for col in numeric_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-            else:
-                df[col] = 0
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
         # Generate Model Predictions (Strictly Non-Negative)
         np.random.seed(42)
@@ -153,7 +212,6 @@ if uploaded_file is not None:
         st.markdown("---")
         m1, m2, m3 = st.columns(3)
         m1.metric("Total Products Evaluated", total_products)
-        # Cleaned delta to avoid negative sign visuals
         m2.metric("Items Requiring Reorder", int(total_reorders), delta=f"{int(total_reorders)} Urgent" if total_reorders > 0 else "All Good", delta_color="off")
         m3.metric("Total Predicted Demand", total_predicted_demand)
 
@@ -179,7 +237,7 @@ if uploaded_file is not None:
             st.markdown("**Demand Trend Overview**")
             st.line_chart(df['Predicted_Demand'])
 
-        # --- PRODUCT EVALUATION RECORDS TABLE ---
+        # --- PRODUCT EVALUATION RECORDS TABLE WITH RED HIGHLIGHTING ---
         st.markdown("### 📋 Product Evaluation Records")
         
         filter_option = st.radio("Filter Records:", ["All Products", "Reorder Required Only"], horizontal=True)
@@ -188,7 +246,13 @@ if uploaded_file is not None:
         if filter_option == "Reorder Required Only":
             display_df = display_df[display_df['Reorder_Required'] == True]
 
-        st.dataframe(display_df, use_container_width=True)
+        # Function to highlight rows where reorder is required in soft red
+        def highlight_reorders(row):
+            if row.get('Reorder_Required', False):
+                return ['background-color: rgba(255, 75, 75, 0.2)'] * len(row)
+            return [''] * len(row)
+
+        st.dataframe(display_df.style.apply(highlight_reorders, axis=1), use_container_width=True)
         
     except Exception as e:
         st.error(f"Error processing file: {e}")
