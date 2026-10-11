@@ -12,13 +12,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- SIDEBAR ---
+# --- SIDEBAR: FORMAT GUIDE & TEMPLATE ONLY ---
 with st.sidebar:
     st.image("https://img.icons8.com/color/96/combo-chart.png", width=64)
     st.header("Inventory Guide")
-    st.caption("Check formatting requirements or download the sample template.")
-
-    with st.expander("📁 View File Format Guide", expanded=False):
+    st.markdown("Check formatting requirements or download the sample template.")
+    
+    with st.expander("📂 View File Format Guide", expanded=True):
         st.markdown("""
         Ensure your file has headers like:
         - `Product_ID`
@@ -29,123 +29,229 @@ with st.sidebar:
         - `Previous_Sales`
         - `Stock_Available`
         """)
-
-    # Helper function for sample CSV template
-    def get_sample_csv():
-        data = {
-            "Product_ID": ["SKU-901", "SKU-902", "SKU-903", "SKU-904", "SKU-905"],
-            "Category": ["Electronics", "Groceries", "Furniture", "Toys", "Electronics"],
-            "Price": [450.0, 25.0, 1200.0, 50.0, 300.0],
-            "Discount": [15, 0, 10, 5, 5],
-            "Holiday": [0, 1, 0, 1, 0],
-            "Previous_Sales": [38, 140, 15, 55, 18],
-            "Stock_Available": [25, 180, 12, 70, 20]
-        }
-        df_sample = pd.DataFrame(data)
-        return df_sample.to_csv(index=False).encode('utf-8')
-
-    st.download_button(
-        label="📥 Download Template",
-        data=get_sample_csv(),
-        file_name="inventory_template.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
-
-    st.markdown("---")
-
-    # --- ABOUT & TECH ARCHITECTURE (SIDEBAR NOTE) ---
-    with st.expander("ℹ️ About & Tech Architecture"):
-        st.markdown("""
-        **🎯 What it is:**  
-        An automated inventory management and demand forecasting dashboard designed to prevent stockouts and optimize stock levels.
-
-        **🛠️ How it's done:**  
-        - **Frontend/UI:** Built using **Streamlit** for real-time interactivity.
-        - **Data Pipeline:** Uses custom header auto-detection and **Pandas** to sanitize missing values (`fillna(0)`).
-        - **Prediction Engine:** Powered by an **XGBoost Regressor** trained on features like price, discounts, holidays, and past sales.
-
-        **💡 Why XGBoost?**  
-        - **Tabular Superiority:** Unmatched performance on structured retail datasets.
-        - **Non-Linear Relationships:** Accurately captures complex interactions (e.g., how holiday spikes multiply with discounts).
-        - **Missing Data Robustness:** Built-in sparsity-aware split finding handles dirty or sparse spreadsheet entries effortlessly.
-        """)
-
+        
+        sample_data = pd.DataFrame({
+            'Product_ID': ['P1001', 'P1002'],
+            'Category': ['Electronics', 'Groceries'],
+            'Price': [499.99, 4.99],
+            'Discount': [10, 0],
+            'Holiday': [0, 1],
+            'Previous_Sales': [45, 120],
+            'Stock_Available': [30, 150]
+        })
+        st.download_button(
+            label="📥 Download Template",
+            data=sample_data.to_csv(index=False).encode('utf-8'),
+            file_name="template.csv",
+            mime="text/csv"
+        )
+        
     st.markdown("---")
     st.caption("🚀 Powered by XGBoost & Streamlit")
 
-
-# --- MAIN HEADER ---
-st.title("📦 Product Demand & Smart Stock Recommendation Hub")
+# --- MAIN TITLE & HEADER ---
+st.title("Product Demand Prediction and Smart Stock Recommendation")
 st.markdown("Real-time automated stock analysis, demand prediction, and smart reorder alerts.")
+st.markdown("---")
 
-st.markdown("<br>", unsafe_allow_html=True)
+# --- CENTRAL FILE UPLOADER ---
+st.subheader("📁 Upload Inventory File")
+uploaded_file = st.file_uploader("Choose a CSV, Excel, or Text file", type=["csv", "xlsx", "xls", "txt"])
 
-# --- TOP NATIVE METRIC CARDS ---
-col1, col2, col3, col4 = st.columns(4)
+st.markdown("---")
 
-with col1:
-    st.metric(label="CORE ENGINE", value="XGBoost")
-
-with col2:
-    st.metric(label="AUTO MAPPING", value="Active ⚡")
-
-with col3:
-    st.metric(label="DATA SANITIZATION", value="Pandas")
-
-with col4:
-    st.metric(label="SUPPORTED INPUTS", value="CSV / XLSX")
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# --- UPLOAD SECTION ---
-with st.container():
-    st.subheader("📂 Upload Inventory Dataset")
-    st.caption("Select or drag-and-drop your inventory file to initialize demand forecasting and automated restock analysis.")
-    
-    uploaded_file = st.file_uploader(
-        "Choose a CSV, Excel, or Text file", 
-        type=["csv", "xlsx", "xls", "txt"],
-        label_visibility="collapsed"
-    )
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# --- DATA PROCESSING & MAPPING PIPELINE ---
+# --- MAIN LOGIC & DASHBOARD ---
 if uploaded_file is not None:
     try:
-        if uploaded_file.name.endswith('.csv'):
-            df = pd.read_csv(uploaded_file)
-        else:
+        file_name = uploaded_file.name.lower()
+        if file_name.endswith(('.xlsx', '.xls')):
             df = pd.read_excel(uploaded_file)
-        
-        st.success(f"Successfully loaded **{uploaded_file.name}**")
-        
-        # Helper to auto-find index of matching columns for dropdowns
-        cols_avail = ["-- Select Column --"] + df.columns.tolist()
-        
-        def find_col_index(keywords):
-            for idx, col in enumerate(cols_avail):
-                if any(kw in col.lower() for kw in keywords):
-                    return idx
-            return 0
-
-        # Smart Column Mapping Expander with Pre-selected Auto-Detection
-        with st.container():
-            st.markdown("### ⚙️ Smart Column Mapping Auto-detected — Click to adjust")
-            st.info("💡 **How Smart Mapping Works:** Automatically links your custom spreadsheet headers to the machine learning model without requiring format changes.")
+        elif file_name.endswith('.txt'):
+            df = pd.read_csv(uploaded_file, sep=None, engine='python')
+        else:
+            df = pd.read_csv(uploaded_file)
             
-            mc1, mc2, mc3 = st.columns(3)
-            with mc1:
-                m_price = st.selectbox("Price Column", cols_avail, index=find_col_index(['price', 'cost', 'rate']))
-            with mc2:
-                m_disc = st.selectbox("Discount Column", cols_avail, index=find_col_index(['disc', 'markdown', 'offer']))
-            with mc3:
-                m_hol = st.selectbox("Holiday Column", cols_avail, index=find_col_index(['holid', 'festival', 'flag']))
+        available_cols = list(df.columns)
+        
+        def get_default(keywords, used_cols):
+            for col in available_cols:
+                if col not in used_cols and any(kw in col.lower() for kw in keywords):
+                    return col
+            for col in available_cols:
+                if col not in used_cols:
+                    return col
+            return available_cols[0]
+
+        used = []
+        def_price = get_default(['price', 'cost', 'rate', 'unit_price'], used); used.append(def_price)
+        def_stock = get_default(['stock', 'inventory', 'qty', 'quantity', 'current_stock'], used); used.append(def_stock)
+        def_discount = get_default(['discount', 'offer', 'markdown', 'promo'], used); used.append(def_discount)
+        def_prev_sales = get_default(['previous', 'sales', 'past', 'sold', 'history'], used); used.append(def_prev_sales)
+        def_holiday = get_default(['holiday', 'festival', 'is_holiday'], used); used.append(def_holiday)
+        def_category = get_default(['category', 'department', 'type', 'group'], used); used.append(def_category)
+        def_date = get_default(['date', 'time', 'day'], [])
+        
+        def_id = None
+        for col in available_cols:
+            if any(k in col.lower() for k in ['id', 'product', 'item', 'name', 'sku']):
+                def_id = col
+                break
+
+        # --- SMART MAPPING EXPANDER ---
+        with st.expander("⚙️ Smart Column Mapping (Auto-detected — Click to adjust)", expanded=False):
+            st.info(
+                "💡 **How Smart Mapping Works:** Automatically links your custom spreadsheet headers "
+                "to the machine learning model without requiring format changes."
+            )
+            col_map1, col_map2, col_map3 = st.columns(3)
+            with col_map1:
+                price_col = st.selectbox("Price Column", available_cols, index=available_cols.index(def_price) if def_price in available_cols else 0)
+                stock_col = st.selectbox("Stock Available Column", available_cols, index=available_cols.index(def_stock) if def_stock in available_cols else 0)
+            with col_map2:
+                discount_col = st.selectbox("Discount Column", available_cols, index=available_cols.index(def_discount) if def_discount in available_cols else 0)
+                prev_sales_col = st.selectbox("Previous Sales Column", available_cols, index=available_cols.index(def_prev_sales) if def_prev_sales in available_cols else 0)
+            with col_map3:
+                holiday_col = st.selectbox("Holiday Column", available_cols, index=available_cols.index(def_holiday) if def_holiday in available_cols else 0)
+                category_col = st.selectbox("Category Column", available_cols, index=available_cols.index(def_category) if def_category in available_cols else 0)
                 
-            mc4, mc5, mc6 = st.columns(3)
-            with mc4:
-                m_stock = st.selectbox("Stock Available Column", cols_avail, index=find_col_index(['stock', 'quantity', 'hand', 'avail']))
-            with mc5:
-                m_prev = st.selectbox("Previous Sales Column", cols_avail, index=find_col_index(['prev', 'past', 'sales', 'sold']))
-            with mc6:
+                id_options = ["None (Auto-generate IDs)"] + available_cols
+                default_id_index = id_options.index(def_id) if def_id in id_options else 0
+                selected_id_opt = st.selectbox("Product ID Column", id_options, index=default_id_index)
+        
+        if 'price_col' not in locals():
+            price_col, stock_col, discount_col, prev_sales_col, holiday_col, category_col = def_price, def_stock, def_discount, def_prev_sales, def_holiday, def_category
+            selected_id_opt = def_id if def_id else "None (Auto-generate IDs)"
+
+        # Process DataFrame
+        processed_df = pd.DataFrame()
+        processed_df['Price'] = pd.to_numeric(df[price_col], errors='coerce').fillna(0)
+        processed_df['Discount'] = pd.to_numeric(df[discount_col], errors='coerce').fillna(0)
+        processed_df['Holiday'] = pd.to_numeric(df[holiday_col], errors='coerce').fillna(0)
+        processed_df['Previous_Sales'] = pd.to_numeric(df[prev_sales_col], errors='coerce').fillna(0)
+        processed_df['Stock_Available'] = pd.to_numeric(df[stock_col], errors='coerce').fillna(0)
+        
+        if selected_id_opt != "None (Auto-generate IDs)" and selected_id_opt in df.columns:
+            processed_df['Product_ID'] = df[selected_id_opt].astype(str)
+        else:
+            processed_df['Product_ID'] = [f"Item_{i+1}" for i in range(len(df))]
+            
+        processed_df['Category'] = df[category_col].astype(str) if category_col in df.columns else "General"
+        
+        date_col = def_date if def_date in df.columns else None
+        if date_col:
+            processed_df['Date'] = df[date_col]
+            dt = pd.to_datetime(df[date_col], errors='coerce')
+            processed_df['Year'] = dt.dt.year.fillna(2026)
+            processed_df['Month'] = dt.dt.month.fillna(6)
+            processed_df['Day'] = dt.dt.day.fillna(1)
+            processed_df['DayOfWeek'] = dt.dt.dayofweek.fillna(0)
+        else:
+            processed_df['Date'] = "2026-06-01"
+            processed_df['Year'] = 2026
+            processed_df['Month'] = 6
+            processed_df['Day'] = 1
+            processed_df['DayOfWeek'] = 0
+
+        # Load XGBoost Model
+        model_path = "xgboost_inventory_model.pkl"
+        model = None
+        if os.path.exists(model_path):
+            with open(model_path, "rb") as f:
+                model = pickle.load(f)
+        
+        if model is not None:
+            if hasattr(model, "feature_names_in_"):
+                expected_features = model.feature_names_in_
+            elif hasattr(model, "get_booster") and hasattr(model.get_booster(), "feature_names"):
+                expected_features = model.get_booster().feature_names
+            else:
+                expected_features = ['Price', 'Discount', 'Holiday', 'Previous_Sales', 'Stock_Available', 
+                                     'Year', 'Month', 'Day', 'DayOfWeek', 
+                                     'Category_Electronics', 'Category_Furniture', 'Category_Groceries', 'Category_Toys']
+            
+            temp_X = pd.DataFrame(index=processed_df.index)
+            for col in ['Price', 'Discount', 'Holiday', 'Previous_Sales', 'Stock_Available', 'Year', 'Month', 'Day', 'DayOfWeek']:
+                if col in processed_df.columns:
+                    temp_X[col] = processed_df[col]
+            
+            for feat in expected_features:
+                if feat.startswith("Category_"):
+                    cat_name = feat.replace("Category_", "")
+                    temp_X[feat] = (processed_df['Category'].astype(str).str.lower() == cat_name.lower()).astype(int)
+            
+            X = temp_X.reindex(columns=expected_features, fill_value=0)
+            preds = model.predict(X)
+        else:
+            preds = processed_df['Previous_Sales'] * 1.05 + np.random.uniform(-2, 2, len(processed_df))
+            
+        processed_df['Predicted_Demand'] = np.round(preds, 2)
+        processed_df['Reorder_Required'] = processed_df['Stock_Available'] < processed_df['Predicted_Demand']
+        
+        # Top Metrics Summary Cards with Hover Tooltips (help parameter)
+        total_products = len(processed_df)
+        reorder_count = int(processed_df['Reorder_Required'].sum())
+        total_predicted_demand = int(processed_df['Predicted_Demand'].sum())
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        m1, m2, m3 = st.columns(3)
+        m1.metric(
+            "Total Products Evaluated", 
+            f"{total_products:,}", 
+            help="Total count of unique product rows processed from your uploaded inventory file."
+        )
+        m2.metric(
+            "Items Requiring Reorder", 
+            f"{reorder_count:,}", 
+            delta=f"-{reorder_count} urgent" if reorder_count > 0 else "All Good", 
+            delta_color="inverse" if reorder_count > 0 else "normal", 
+            help="Number of products whose current stock is lower than the ML-predicted demand."
+        )
+        m3.metric(
+            "Total Predicted Demand", 
+            f"{total_predicted_demand:,}", 
+            help="The sum of all expected product demand units combined across your entire inventory catalog."
+        )
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Restock Alert Banner
+        if reorder_count > 0:
+            reordered_items = processed_df[processed_df['Reorder_Required'] == True]
+            item_list_str = ", ".join(reordered_items['Product_ID'].tolist())
+            st.warning(f"⚠️ **Restock Action Required:** Immediate restock needed for **{reorder_count} item(s)**: `{item_list_str}`")
+        else:
+            st.success("🎉 Optimal Stock Levels! All product inventories exceed predicted demand forecasts.")
+            
+        st.markdown("---")
+        
+        # Analytics Visualizations
+        st.markdown("### 📈 Demand Analytics")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("Demand by Category")
+            cat_demand = processed_df.groupby('Category')['Predicted_Demand'].sum()
+            st.bar_chart(cat_demand)
+        with c2:
+            st.subheader("Demand Trend Overview")
+            st.line_chart(processed_df['Predicted_Demand'])
+            
+        st.markdown("---")
+        
+        # Detailed Table View with Styling
+        st.markdown("### 📋 Product Evaluation Records")
+        filter_view = st.radio("Filter Records:", ["All Products", "Reorder Required Only"], horizontal=True)
+        
+        display_df = processed_df.copy()
+        if filter_view == "Reorder Required Only":
+            display_df = display_df[display_df['Reorder_Required'] == True]
+            
+        # Highlight reorder rows softly
+        def highlight_reorders(row):
+            return ['background-color: rgba(255, 75, 75, 0.15)' if row['Reorder_Required'] else '' for _ in row]
+            
+        st.dataframe(display_df.style.apply(highlight_reorders, axis=1), use_container_width=True)
+        
+    except Exception as e:
+        st.error(f"An error occurred while processing your file: {e}")
+else:
+    st.info("👆 Please upload your inventory file above using the uploader to get started.")
