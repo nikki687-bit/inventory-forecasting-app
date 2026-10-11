@@ -6,7 +6,7 @@ import os
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Product Demand & Smart Stock Recommendation Hub",
+    page_title="Product Demand & Stock Recommendation Hub",
     page_icon="📦",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -145,4 +145,7 @@ if uploaded_file is not None:
                 
             mc4, mc5, mc6 = st.columns(3)
             with mc4:
-                m_stock = st
+                m_stock = st.selectbox("Stock Available Column", cols_avail, index=find_col_index(['stock', 'quantity', 'hand', 'avail']))
+            with mc5:
+                m_prev = st.selectbox("Previous Sales Column", cols_avail, index=find_col_index(['prev', 'past', 'sales', 'sold']))
+            with mc6
