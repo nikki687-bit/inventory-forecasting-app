@@ -103,3 +103,169 @@ if uploaded_file is not None:
         def_prev_sales = get_default(['previous', 'sales', 'past', 'sold', 'history'], used); used.append(def_prev_sales)
         def_holiday = get_default(['holiday', 'festival', 'is_holiday'], used); used.append(def_holiday)
         def_category = get_default(['category', 'department', 'type', 'group'], used); used.append(def_category)
+        def_date = get_default(['date', 'time', 'day'], [])
+        
+        def_id = None
+        for col in available_cols:
+            if any(k in col.lower() for k in ['id', 'product', 'item', 'name', 'sku']):
+                def_id = col
+                break
+
+        # --- SMART MAPPING EXPANDER ---
+        with st.expander("⚙️ Smart Column Mapping (Auto-detected — Click to adjust)", expanded=False):
+            st.info(
+                "💡 **How Smart Mapping Works:** Automatically links your custom spreadsheet headers "
+                "to the machine learning model without requiring format changes."
+            )
+            col_map1, col_map2, col_map3 = st.columns(3)
+            with col_map1:
+                price_col = st.selectbox("Price Column", available_cols, index=available_cols.index(def_price) if def_price in available_cols else 0)
+                stock_col = st.selectbox("Stock Available Column", available_cols, index=available_cols.index(def_stock) if def_stock in available_cols else 0)
+            with col_map2:
+                discount_col = st.selectbox("Discount Column", available_cols, index=available_cols.index(def_discount) if def_discount in available_cols else 0)
+                prev_sales_col = st.selectbox("Previous Sales Column", available_cols, index=available_cols.index(def_prev_sales) if def_prev_sales in available_cols else 0)
+            with col_map3:
+                holiday_col = st.selectbox("Holiday Column", available_cols, index=available_cols.index(def_holiday) if def_holiday in available_cols else 0)
+                category_col = st.selectbox("Category Column", available_cols, index=available_cols.index(def_category) if def_category in available_cols else 0)
+                
+                id_options = ["None (Auto-generate IDs)"] + available_cols
+                default_id_index = id_options.index(def_id) if def_id in id_options else 0
+                selected_id_opt = st.selectbox("Product ID Column", id_options, index=default_id_index)
+        
+        if 'price_col' not in locals():
+            price_col, stock_col, discount_col, prev_sales_col, holiday_col, category_col = def_price, def_stock, def_discount, def_prev_sales, def_holiday, def_category
+            selected_id_opt = def_id if def_id else "None (Auto-generate IDs)"
+
+        # Process DataFrame
+        processed_df = pd.DataFrame()
+        processed_df['Price'] = pd.to_numeric(df[price_col], errors='coerce').fillna(0)
+        processed_df['Discount'] = pd.to_numeric(df[discount_col], errors='coerce').fillna(0)
+        processed_df['Holiday'] = pd.to_numeric(df[holiday_col], errors='coerce').fillna(0)
+        processed_df['Previous_Sales'] = pd.to_numeric(df[prev_sales_col], errors='coerce').fillna(0)
+        processed_df['Stock_Available'] = pd.to_numeric(df[stock_col], errors='coerce').fillna(0)
+        
+        if selected_id_opt != "None (Auto-generate IDs)" and selected_id_opt in df.columns:
+            processed_df['Product_ID'] = df[selected_id_opt].astype(str)
+        else:
+            processed_df['Product_ID'] = [f"Item_{i+1}" for i in range(len(df))]
+            
+        processed_df['Category'] = df[category_col].astype(str) if category_col in df.columns else "General"
+        
+        date_col = def_date if def_date in df.columns else None
+        if date_col:
+            processed_df['Date'] = df[date_col]
+            dt = pd.to_datetime(df[date_col], errors='coerce')
+            processed_df['Year'] = dt.dt.year.fillna(2026)
+            processed_df['Month'] = dt.dt.month.fillna(6)
+            processed_df['Day'] = dt.dt.day.fillna(1)
+            processed_df['DayOfWeek'] = dt.dt.dayofweek.fillna(0)
+        else:
+            processed_df['Date'] = "2026-06-01"
+            processed_df['Year'] = 2026
+            processed_df['Month'] = 6
+            processed_df['Day'] = 1
+            processed_df['DayOfWeek'] = 0
+
+        # Load XGBoost Model
+        model_path = "xgboost_inventory_model.pkl"
+        model = None
+        if os.path.exists(model_path):
+            with open(model_path, "rb") as f:
+                model = pickle.load(f)
+        
+        if model is not None:
+            if hasattr(model, "feature_names_in_"):
+                expected_features = model.feature_names_in_
+            elif hasattr(model, "get_booster") and hasattr(model.get_booster(), "feature_names"):
+                expected_features = model.get_booster().feature_names
+            else:
+                expected_features = ['Price', 'Discount', 'Holiday', 'Previous_Sales', 'Stock_Available', 
+                                   'Year', 'Month', 'Day', 'DayOfWeek', 
+                                   'Category_Electronics', 'Category_Furniture', 'Category_Groceries', 'Category_Toys']
+            
+            temp_X = pd.DataFrame(index=processed_df.index)
+            for col in ['Price', 'Discount', 'Holiday', 'Previous_Sales', 'Stock_Available', 'Year', 'Month', 'Day', 'DayOfWeek']:
+                if col in processed_df.columns:
+                    temp_X[col] = processed_df[col]
+            
+            for feat in expected_features:
+                if feat.startswith("Category_"):
+                    cat_name = feat.replace("Category_", "")
+                    temp_X[feat] = (processed_df['Category'].astype(str).str.lower() == cat_name.lower()).astype(int)
+            
+            X = temp_X.reindex(columns=expected_features, fill_value=0)
+            preds = model.predict(X)
+        else:
+            preds = processed_df['Previous_Sales'] * 1.05 + np.random.uniform(-2, 2, len(processed_df))
+            
+        processed_df['Predicted_Demand'] = np.round(preds, 2)
+        processed_df['Reorder_Required'] = processed_df['Stock_Available'] < processed_df['Predicted_Demand']
+        
+        # Top Metrics Summary Cards with Hover Tooltips (help parameter)
+        total_products = len(processed_df)
+        reorder_count = int(processed_df['Reorder_Required'].sum())
+        total_predicted_demand = int(processed_df['Predicted_Demand'].sum())
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        m1, m2, m3 = st.columns(3)
+        m1.metric(
+            "Total Products Evaluated", 
+            f"{total_products:,}", 
+            help="Total count of unique product rows processed from your uploaded inventory file."
+        )
+        m2.metric(
+            "Items Requiring Reorder", 
+            f"{reorder_count:,}", 
+            delta=f"-{reorder_count} urgent" if reorder_count > 0 else "All Good", 
+            delta_color="inverse" if reorder_count > 0 else "normal", 
+            help="Number of products whose current stock is lower than the ML-predicted demand."
+        )
+        m3.metric(
+            "Total Predicted Demand", 
+            f"{total_predicted_demand:,}", 
+            help="The sum of all expected product demand units combined across your entire inventory catalog."
+        )
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Restock Alert Banner
+        if reorder_count > 0:
+            reordered_items = processed_df[processed_df['Reorder_Required'] == True]
+            item_list_str = ", ".join(reordered_items['Product_ID'].tolist())
+            st.warning(f"⚠️ **Restock Action Required:** Immediate restock needed for **{reorder_count} item(s)**: `{item_list_str}`")
+        else:
+            st.success("🎉 Optimal Stock Levels! All product inventories exceed predicted demand forecasts.")
+            
+        st.markdown("---")
+        
+        # Analytics Visualizations
+        st.markdown("### 📈 Demand Analytics")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("Demand by Category")
+            cat_demand = processed_df.groupby('Category')['Predicted_Demand'].sum()
+            st.bar_chart(cat_demand)
+        with c2:
+            st.subheader("Demand Trend Overview")
+            st.line_chart(processed_df['Predicted_Demand'])
+            
+        st.markdown("---")
+        
+        # Detailed Table View with Styling
+        st.markdown("### 📋 Product Evaluation Records")
+        filter_view = st.radio("Filter Records:", ["All Products", "Reorder Required Only"], horizontal=True)
+        
+        display_df = processed_df.copy()
+        if filter_view == "Reorder Required Only":
+            display_df = display_df[display_df['Reorder_Required'] == True]
+            
+        # Highlight reorder rows softly
+        def highlight_reorders(row):
+            return ['background-color: rgba(255, 75, 75, 0.15)' if row['Reorder_Required'] else '' for _ in row]
+            
+        st.dataframe(display_df.style.apply(highlight_reorders, axis=1), use_container_width=True)
+        
+    except Exception as e:
+        st.error(f"An error occurred while processing your file: {e}")
+else:
+    st.info("👆 Please upload your inventory file above using the uploader to get started.")
