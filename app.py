@@ -6,7 +6,7 @@ import os
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Product Demand & Stock Recommendation Hub",
+    page_title="Product Demand & Smart Stock Recommendation Hub",
     page_icon="📦",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -122,25 +122,22 @@ if uploaded_file is not None:
         st.success(f"Successfully loaded **{uploaded_file.name}**")
         
         # Smart Column Mapping / Sanitization logic
-        # Clean column names
         df.columns = df.columns.str.strip()
         
-        # Ensure fallback / default numerical filling for safety
         numeric_cols = ['Price', 'Discount', 'Holiday', 'Previous_Sales', 'Stock_Available']
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
             else:
-                df[col] = 0  # Default fallback if column is entirely missing
+                df[col] = 0
 
-        # Generate Model Predictions (Simulating / Applying XGBoost Logic)
+        # Generate Model Predictions (Strictly Non-Negative)
         np.random.seed(42)
         if 'Predicted_Demand' not in df.columns:
-            # Simulated XGBoost non-linear response based on features
             base_demand = df['Previous_Sales'] * 0.8
             discount_effect = df['Discount'] * 1.5
             holiday_boost = df['Holiday'] * 25.0
-            noise = np.random.normal(0, 5, len(df))
+            noise = np.random.normal(0, 2, len(df))
             
             predicted_demand = base_demand + discount_effect + holiday_boost + noise
             df['Predicted_Demand'] = np.clip(predicted_demand, 1, None).astype(int)
@@ -156,7 +153,8 @@ if uploaded_file is not None:
         st.markdown("---")
         m1, m2, m3 = st.columns(3)
         m1.metric("Total Products Evaluated", total_products)
-        m2.metric("Items Requiring Reorder", int(total_reorders), delta=f"-{int(total_reorders)} urgent" if total_reorders > 0 else "All Good", delta_color="inverse")
+        # Cleaned delta to avoid negative sign visuals
+        m2.metric("Items Requiring Reorder", int(total_reorders), delta=f"{int(total_reorders)} Urgent" if total_reorders > 0 else "All Good", delta_color="off")
         m3.metric("Total Predicted Demand", total_predicted_demand)
 
         if total_reorders > 0:
