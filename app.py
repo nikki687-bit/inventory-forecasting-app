@@ -6,16 +6,16 @@ import os
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Product Demand & Stock Recommendation Hub",
+    page_title="Product Demand & Smart Stock Recommendation Hub",
     page_icon="📦",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM UI STYLING (CSS) ---
+# --- CUSTOM UI STYLING (THEME-AWARE CSS) ---
 st.markdown("""
     <style>
-    /* Metric Card Styling */
+    /* Default Dark Mode Metric Card Styling */
     .metric-card {
         background-color: #1e222d;
         border: 1px solid #2d313e;
@@ -38,13 +38,19 @@ st.markdown("""
         margin-top: 4px;
     }
     
-    /* Custom Banner Styling */
-    .hero-banner {
-        background: linear-gradient(135deg, #1e2640 0%, #0f172a 100%);
-        border: 1px solid #334155;
-        border-radius: 12px;
-        padding: 24px;
-        margin-bottom: 25px;
+    /* Light Mode Overrides for Metric Cards */
+    @media (prefers-color-scheme: light) {
+        .metric-card {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+        .metric-title {
+            color: #64748b;
+        }
+        .metric-value {
+            color: #0284c7;
+        }
     }
     </style>
 """, unsafe_allow_html=True)
