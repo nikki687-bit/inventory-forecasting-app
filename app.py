@@ -148,4 +148,4 @@ if uploaded_file is not None:
                 m_stock = st.selectbox("Stock Available Column", cols_avail, index=find_col_index(['stock', 'quantity', 'hand', 'avail']))
             with mc5:
                 m_prev = st.selectbox("Previous Sales Column", cols_avail, index=find_col_index(['prev', 'past', 'sales', 'sold']))
-            with mc6
+            with mc6:
