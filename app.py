@@ -121,133 +121,28 @@ if uploaded_file is not None:
         
         st.success(f"Successfully loaded **{uploaded_file.name}**")
         
-        # Smart Column Mapping Expander (Matches your preferred multi-dropdown layout)
-        required_cols = ['Product_ID', 'Price', 'Discount', 'Holiday', 'Previous_Sales', 'Stock_Available', 'Category']
-        missing_check = [col for col in required_cols if col not in df.columns]
+        # Helper to auto-find index of matching columns for dropdowns
+        cols_avail = ["-- Select Column --"] + df.columns.tolist()
         
-        if len(missing_check) > 0:
-            with st.container():
-                st.markdown("### ⚙️ Smart Column Mapping Auto-detected — Click to adjust")
-                st.info("💡 **How Smart Mapping Works:** Automatically links your custom spreadsheet headers to the machine learning model without requiring format changes.")
-                
-                cols_avail = ["-- Select Column --"] + df.columns.tolist()
-                
-                mc1, mc2, mc3 = st.columns(3)
-                with mc1:
-                    m_price = st.selectbox("Price Column", cols_avail)
-                with mc2:
-                    m_disc = st.selectbox("Discount Column", cols_avail)
-                with mc3:
-                    m_hol = st.selectbox("Holiday Column", cols_avail)
-                    
-                mc4, mc5, mc6 = st.columns(3)
-                with mc4:
-                    m_stock = st.selectbox("Stock Available Column", cols_avail)
-                with mc5:
-                    m_prev = st.selectbox("Previous Sales Column", cols_avail)
-                with mc6:
-                    m_cat = st.selectbox("Category Column", cols_avail)
+        def find_col_index(keywords):
+            for idx, col in enumerate(cols_avail):
+                if any(kw in col.lower() for kw in keywords):
+                    return idx
+            return 0
 
-                mc7 = st.columns(1)[0]
-                with mc7:
-                    m_prod = st.selectbox("Product ID Column", cols_avail)
-                
-                mapping_dict = {}
-                if m_price != "-- Select Column --": mapping_dict[m_price] = 'Price'
-                if m_disc != "-- Select Column --": mapping_dict[m_disc] = 'Discount'
-                if m_hol != "-- Select Column --": mapping_dict[m_hol] = 'Holiday'
-                if m_stock != "-- Select Column --": mapping_dict[m_stock] = 'Stock_Available'
-                if m_prev != "-- Select Column --": mapping_dict[m_prev] = 'Previous_Sales'
-                if m_cat != "-- Select Column --": mapping_dict[m_cat] = 'Category'
-                if m_prod != "-- Select Column --": mapping_dict[m_prod] = 'Product_ID'
-                
-                df = df.rename(columns=mapping_dict)
-                st.markdown("---")
-
-        # Fallback defaults if columns still missing
-        if 'Product_ID' not in df.columns:
-            df['Product_ID'] = [f"SKU-{100+i}" for i in range(len(df))]
-        if 'Category' not in df.columns:
-            df['Category'] = "General"
-        if 'Price' not in df.columns:
-            df['Price'] = 50.0
-        if 'Discount' not in df.columns:
-            df['Discount'] = 0.0
-        if 'Holiday' not in df.columns:
-            df['Holiday'] = 0
-        if 'Previous_Sales' not in df.columns:
-            df['Previous_Sales'] = 10
-        if 'Stock_Available' not in df.columns:
-            df['Stock_Available'] = 15
-
-        # Sanitization via Pandas
-        numeric_cols = ['Price', 'Discount', 'Holiday', 'Previous_Sales', 'Stock_Available']
-        for col in numeric_cols:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-
-        # Generate Model Predictions (Restored original calculation formula supporting distinct categories)
-        np.random.seed(42)
-        if 'Predicted_Demand' not in df.columns:
-            base_demand = df['Previous_Sales'] * 0.8
-            discount_effect = df['Discount'] * 1.5
-            holiday_boost = df['Holiday'] * 25.0
-            noise = np.random.normal(0, 5, len(df))
+        # Smart Column Mapping Expander with Pre-selected Auto-Detection
+        with st.container():
+            st.markdown("### ⚙️ Smart Column Mapping Auto-detected — Click to adjust")
+            st.info("💡 **How Smart Mapping Works:** Automatically links your custom spreadsheet headers to the machine learning model without requiring format changes.")
             
-            predicted_demand = base_demand + discount_effect + holiday_boost + noise
-            df['Predicted_Demand'] = np.clip(predicted_demand, 1, None).astype(int)
-
-        # Restock flag logic
-        df['Reorder_Required'] = df['Stock_Available'] < df['Predicted_Demand']
-
-        # --- METRICS SUMMARY ---
-        total_products = len(df)
-        total_reorders = df['Reorder_Required'].sum()
-        total_predicted_demand = int(df['Predicted_Demand'].sum())
-
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Total Products Evaluated", total_products)
-        m2.metric("Items Requiring Reorder", int(total_reorders), delta=f"{int(total_reorders)} Urgent" if total_reorders > 0 else "All Good", delta_color="off")
-        m3.metric("Total Predicted Demand", total_predicted_demand)
-
-        if total_reorders > 0:
-            urgent_skus = df[df['Reorder_Required']]['Product_ID'].astype(str).tolist()
-            st.warning(f"⚠️ **Restock Action Required:** Immediate restock needed for {total_reorders} item(s): {', '.join(urgent_skus)}")
-        else:
-            st.success("✅ **Stock Status Optimal:** All inventory levels are currently sufficient to cover predicted demand.")
-
-        # --- DEMAND ANALYTICS CHARTS ---
-        st.markdown("### 📈 Demand Analytics")
-        c1, c2 = st.columns(2)
-
-        with c1:
-            st.markdown("**Demand by Category**")
-            if 'Category' in df.columns:
-                cat_demand = df.groupby('Category')['Predicted_Demand'].sum().reset_index()
-                st.bar_chart(cat_demand.set_index('Category'))
-            else:
-                st.info("Category column not found for grouping.")
-
-        with c2:
-            st.markdown("**Demand Trend Overview**")
-            st.line_chart(df['Predicted_Demand'])
-
-        # --- PRODUCT EVALUATION RECORDS TABLE WITH RED HIGHLIGHTING ---
-        st.markdown("### 📋 Product Evaluation Records")
-        
-        filter_option = st.radio("Filter Records:", ["All Products", "Reorder Required Only"], horizontal=True)
-        
-        display_df = df.copy()
-        if filter_option == "Reorder Required Only":
-            display_df = display_df[display_df['Reorder_Required'] == True]
-
-        def highlight_reorders(row):
-            if row.get('Reorder_Required', False):
-                return ['background-color: rgba(255, 75, 75, 0.25)'] * len(row)
-            return [''] * len(row)
-
-        st.dataframe(display_df.style.apply(highlight_reorders, axis=1), use_container_width=True)
-        
-    except Exception as e:
-        st.error(f"Error processing file: {e}")
-else:
-    st.info("👈 Upload an inventory file above or download the sample template from the sidebar to begin.")
+            mc1, mc2, mc3 = st.columns(3)
+            with mc1:
+                m_price = st.selectbox("Price Column", cols_avail, index=find_col_index(['price', 'cost', 'rate']))
+            with mc2:
+                m_disc = st.selectbox("Discount Column", cols_avail, index=find_col_index(['disc', 'markdown', 'offer']))
+            with mc3:
+                m_hol = st.selectbox("Holiday Column", cols_avail, index=find_col_index(['holid', 'festival', 'flag']))
+                
+            mc4, mc5, mc6 = st.columns(3)
+            with mc4:
+                m_stock = st
