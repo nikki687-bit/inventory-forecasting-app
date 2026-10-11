@@ -47,6 +47,20 @@ with st.sidebar:
         )
         
     st.markdown("---")
+
+    # --- ABOUT & TECH ARCHITECTURE (SIDEBAR NOTE) ---
+    with st.expander("ℹ️ About & Tech Architecture", expanded=False):
+        st.markdown("""
+        **🎯 What it is:**  
+        An automated inventory management and demand forecasting dashboard designed to prevent stockouts and optimize stock levels.
+
+        **💡 Why XGBoost?**  
+        - **Tabular Superiority:** Unmatched performance on structured retail datasets.
+        - **Non-Linear Relationships:** Accurately captures complex interactions (e.g., how holiday spikes multiply with discounts).
+        - **Missing Data Robustness:** Built-in sparsity-aware split finding handles dirty or sparse spreadsheet entries effortlessly.
+        """)
+
+    st.markdown("---")
     st.caption("🚀 Powered by XGBoost & Streamlit")
 
 # --- MAIN TITLE & HEADER ---
@@ -164,94 +178,4 @@ if uploaded_file is not None:
                 expected_features = model.feature_names_in_
             elif hasattr(model, "get_booster") and hasattr(model.get_booster(), "feature_names"):
                 expected_features = model.get_booster().feature_names
-            else:
-                expected_features = ['Price', 'Discount', 'Holiday', 'Previous_Sales', 'Stock_Available', 
-                                     'Year', 'Month', 'Day', 'DayOfWeek', 
-                                     'Category_Electronics', 'Category_Furniture', 'Category_Groceries', 'Category_Toys']
-            
-            temp_X = pd.DataFrame(index=processed_df.index)
-            for col in ['Price', 'Discount', 'Holiday', 'Previous_Sales', 'Stock_Available', 'Year', 'Month', 'Day', 'DayOfWeek']:
-                if col in processed_df.columns:
-                    temp_X[col] = processed_df[col]
-            
-            for feat in expected_features:
-                if feat.startswith("Category_"):
-                    cat_name = feat.replace("Category_", "")
-                    temp_X[feat] = (processed_df['Category'].astype(str).str.lower() == cat_name.lower()).astype(int)
-            
-            X = temp_X.reindex(columns=expected_features, fill_value=0)
-            preds = model.predict(X)
-        else:
-            preds = processed_df['Previous_Sales'] * 1.05 + np.random.uniform(-2, 2, len(processed_df))
-            
-        processed_df['Predicted_Demand'] = np.round(preds, 2)
-        processed_df['Reorder_Required'] = processed_df['Stock_Available'] < processed_df['Predicted_Demand']
-        
-        # Top Metrics Summary Cards with Hover Tooltips (help parameter)
-        total_products = len(processed_df)
-        reorder_count = int(processed_df['Reorder_Required'].sum())
-        total_predicted_demand = int(processed_df['Predicted_Demand'].sum())
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        m1, m2, m3 = st.columns(3)
-        m1.metric(
-            "Total Products Evaluated", 
-            f"{total_products:,}", 
-            help="Total count of unique product rows processed from your uploaded inventory file."
-        )
-        m2.metric(
-            "Items Requiring Reorder", 
-            f"{reorder_count:,}", 
-            delta=f"-{reorder_count} urgent" if reorder_count > 0 else "All Good", 
-            delta_color="inverse" if reorder_count > 0 else "normal", 
-            help="Number of products whose current stock is lower than the ML-predicted demand."
-        )
-        m3.metric(
-            "Total Predicted Demand", 
-            f"{total_predicted_demand:,}", 
-            help="The sum of all expected product demand units combined across your entire inventory catalog."
-        )
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # Restock Alert Banner
-        if reorder_count > 0:
-            reordered_items = processed_df[processed_df['Reorder_Required'] == True]
-            item_list_str = ", ".join(reordered_items['Product_ID'].tolist())
-            st.warning(f"⚠️ **Restock Action Required:** Immediate restock needed for **{reorder_count} item(s)**: `{item_list_str}`")
-        else:
-            st.success("🎉 Optimal Stock Levels! All product inventories exceed predicted demand forecasts.")
-            
-        st.markdown("---")
-        
-        # Analytics Visualizations
-        st.markdown("### 📈 Demand Analytics")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("Demand by Category")
-            cat_demand = processed_df.groupby('Category')['Predicted_Demand'].sum()
-            st.bar_chart(cat_demand)
-        with c2:
-            st.subheader("Demand Trend Overview")
-            st.line_chart(processed_df['Predicted_Demand'])
-            
-        st.markdown("---")
-        
-        # Detailed Table View with Styling
-        st.markdown("### 📋 Product Evaluation Records")
-        filter_view = st.radio("Filter Records:", ["All Products", "Reorder Required Only"], horizontal=True)
-        
-        display_df = processed_df.copy()
-        if filter_view == "Reorder Required Only":
-            display_df = display_df[display_df['Reorder_Required'] == True]
-            
-        # Highlight reorder rows softly
-        def highlight_reorders(row):
-            return ['background-color: rgba(255, 75, 75, 0.15)' if row['Reorder_Required'] else '' for _ in row]
-            
-        st.dataframe(display_df.style.apply(highlight_reorders, axis=1), use_container_width=True)
-        
-    except Exception as e:
-        st.error(f"An error occurred while processing your file: {e}")
-else:
-    st.info("👆 Please upload your inventory file above using the uploader to get started.")
+            else
