@@ -20,7 +20,7 @@ with st.sidebar:
     
     with st.expander("📂 View File Format Guide", expanded=True):
         st.markdown("""
-        Ensure your file has headers like:
+        💡 *Any column names work thanks to Smart Mapping!* Standard fields recognized by the model include:
         - `Product_ID`
         - `Category`
         - `Price`
