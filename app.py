@@ -12,49 +12,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM UI STYLING (THEME-AWARE CSS) ---
-st.markdown("""
-    <style>
-    /* Default Dark Mode Metric Card Styling */
-    .metric-card {
-        background-color: #1e222d;
-        border: 1px solid #2d313e;
-        border-radius: 10px;
-        padding: 16px;
-        text-align: center;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-    }
-    .metric-title {
-        color: #8b949e;
-        font-size: 0.85rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    .metric-value {
-        color: #4da6ff;
-        font-size: 1.6rem;
-        font-weight: 700;
-        margin-top: 4px;
-    }
-    
-    /* Light Mode Overrides for Metric Cards */
-    @media (prefers-color-scheme: light) {
-        .metric-card {
-            background-color: #f8fafc;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        }
-        .metric-title {
-            color: #64748b;
-        }
-        .metric-value {
-            color: #0284c7;
-        }
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 # --- SIDEBAR ---
 with st.sidebar:
     st.image("https://img.icons8.com/color/96/combo-chart.png", width=64)
@@ -124,44 +81,24 @@ st.markdown("Real-time automated stock analysis, demand prediction, and smart re
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# --- TOP HIGHLIGHT METRIC CARDS ---
+# --- TOP NATIVE METRIC CARDS (Auto-adapts to Light/Dark Mode) ---
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    st.markdown("""
-    <div class="metric-card">
-        <div class="metric-title">Core Engine</div>
-        <div class="metric-value">XGBoost</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.metric(label="CORE ENGINE", value="XGBoost")
 
 with col2:
-    st.markdown("""
-    <div class="metric-card">
-        <div class="metric-title">Auto Mapping</div>
-        <div class="metric-value">Active ⚡</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.metric(label="AUTO MAPPING", value="Active ⚡")
 
 with col3:
-    st.markdown("""
-    <div class="metric-card">
-        <div class="metric-title">Data Sanitization</div>
-        <div class="metric-value">Pandas</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.metric(label="DATA SANITIZATION", value="Pandas")
 
 with col4:
-    st.markdown("""
-    <div class="metric-card">
-        <div class="metric-title">Supported Inputs</div>
-        <div class="metric-value">CSV / XLSX</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.metric(label="SUPPORTED INPUTS", value="CSV / XLSX")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# --- UPLOAD SECTION IN STYLED CONTAINER ---
+# --- UPLOAD SECTION ---
 with st.container():
     st.subheader("📂 Upload Inventory Dataset")
     st.caption("Select or drag-and-drop your inventory file to initialize demand forecasting and automated restock analysis.")
